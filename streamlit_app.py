@@ -17,7 +17,18 @@ st.set_page_config(
 def get_snowflake_session():
     """Create Snowflake connection using environment variables or Streamlit secrets"""
     try:
-        # Try to get credentials from Streamlit secrets (for Streamlit Cloud)
+        # HARDCODED CONNECTION FOR DEBUGGING - REMOVE IN PRODUCTION
+        connection_params = {
+            "account": "NBHIMLC-WB58290.snowflakecomputing.com",
+            "user": "MAGARPOON",
+            "password": "ASDFGhjkl;@123456",
+            "warehouse": "FETII_WAREHOUSE",
+            "database": "SNOWFLAKE_INTELLIGENCE",
+            "schema": "AGENTS",
+            "role": "ACCOUNTADMIN"
+        }
+        
+        # Override with secrets if available (for production)
         if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
             connection_params = {
                 "account": st.secrets["snowflake"]["account"],
@@ -28,7 +39,7 @@ def get_snowflake_session():
                 "schema": st.secrets["snowflake"]["schema"],
                 "role": st.secrets["snowflake"]["role"]
             }
-        else:
+        elif os.getenv("SNOWFLAKE_ACCOUNT"):
             # Fallback to environment variables (for local development)
             connection_params = {
                 "account": os.getenv("SNOWFLAKE_ACCOUNT"),
@@ -372,15 +383,23 @@ else:
                 }
             
                 # Make API call to your Cortex agent
-                # Get agent configuration from environment/secrets
+                # HARDCODED SECRETS FOR DEBUGGING - REMOVE IN PRODUCTION
+                st.write("🔧 **Using hardcoded secrets for debugging**")
+                agent_database = "SNOWFLAKE_INTELLIGENCE"
+                agent_schema = "AGENTS"
+                agent_name = "AVA"
+                
+                # Override with secrets/env if available (for production)
                 if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
-                    agent_database = st.secrets["snowflake"].get("database")
-                    agent_schema = st.secrets["snowflake"].get("schema")  
-                    agent_name = st.secrets["snowflake"].get("agent_name", "FETII_CHAT")
-                else:
+                    agent_database = st.secrets["snowflake"].get("database", agent_database)
+                    agent_schema = st.secrets["snowflake"].get("schema", agent_schema)  
+                    agent_name = st.secrets["snowflake"].get("agent_name", agent_name)
+                    st.write("📝 **Found Streamlit secrets - using those instead**")
+                elif os.getenv("SNOWFLAKE_DATABASE"):
                     agent_database = os.getenv("SNOWFLAKE_DATABASE")
                     agent_schema = os.getenv("SNOWFLAKE_SCHEMA")
-                    agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", "FETII_CHAT")
+                    agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", agent_name)
+                    st.write("📝 **Found environment variables - using those instead**")
                 
                 agent_endpoint = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
                 
@@ -423,13 +442,24 @@ Once configured, I'll be able to:
                     
                 else:
                     # Try actual API call
-                    response = requests.post(
-                        agent_endpoint,
-                        headers=headers,
-                        json=payload,
-                        stream=True,
-                        timeout=30
-                    )
+                    st.write("🚀 **Making API call to Cortex Agent...**")
+                    st.write(f"**Endpoint:** `{agent_endpoint}`")
+                    st.write(f"**Headers:** `{headers}`")
+                    st.write(f"**Payload:** `{payload}`")
+                    
+                    try:
+                        response = requests.post(
+                            agent_endpoint,
+                            headers=headers,
+                            json=payload,
+                            stream=True,
+                            timeout=30
+                        )
+                        st.write(f"**Response Status:** `{response.status_code}`")
+                        st.write(f"**Response Headers:** `{dict(response.headers)}`")
+                    except requests.exceptions.RequestException as req_error:
+                        st.write(f"❌ **Request failed:** `{str(req_error)}`")
+                        raise req_error
                     
                     if response.status_code == 200:
                         full_response = ""
