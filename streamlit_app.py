@@ -19,7 +19,7 @@ def get_snowflake_session():
     try:
         # HARDCODED CONNECTION FOR DEBUGGING - REMOVE IN PRODUCTION
         connection_params = {
-            "account": "NBHIMLC-WB58290.snowflakecomputing.com",
+            "account": "NBHIMLC-WB58290",  # Just the account identifier, not the full domain
             "user": "MAGARPOON",
             "password": "ASDFGhjkl;@123456",
             "warehouse": "FETII_WAREHOUSE",
