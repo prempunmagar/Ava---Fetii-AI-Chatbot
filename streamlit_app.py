@@ -265,7 +265,7 @@ if not st.session_state.show_chat:
     # Main input field
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        user_input = st.text_input("", placeholder="Ask Ava Intelligence...", label_visibility="collapsed", key="main_input")
+        user_input = st.text_input("Ask Ava Intelligence", placeholder="Ask Ava Intelligence...", label_visibility="collapsed", key="main_input")
         st.markdown(f'<div class="mode-display">Mode: {st.session_state.get("mode", "analytics").title()} • Sources: Auto</div>', unsafe_allow_html=True)
     
     # Suggested questions with proper styling
@@ -328,6 +328,8 @@ else:
             try:
                 # Ensure Snowflake session exists before use
                 ensure_session()
+                
+                st.write("✅ **Session established successfully**")
 
                 # Determine base_url from either host or account
                 try:
@@ -345,7 +347,7 @@ else:
                             base_url = f"https://{account_or_host}"
                         else:
                             base_url = f"https://{account_or_host}.snowflakecomputing.com" if account_or_host else ""
-                base_url = f"https://{account_url}.snowflakecomputing.com"
+                # base_url already determined above based on account/host
                 
                 # Get session token
                 try:
@@ -381,6 +383,14 @@ else:
                     agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", "FETII_CHAT")
                 
                 agent_endpoint = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
+                
+                # Debug: Show what credentials we found
+                st.write(f"🔍 **Debug Info:**")
+                st.write(f"- Agent Database: `{agent_database}`")
+                st.write(f"- Agent Schema: `{agent_schema}`") 
+                st.write(f"- Agent Name: `{agent_name}`")
+                st.write(f"- Base URL: `{base_url}`")
+                st.write(f"- Full Endpoint: `{agent_endpoint}`")
                 
                 # Check if agent is configured
                 if not agent_database or not agent_schema:
@@ -459,8 +469,19 @@ Could you try asking your question again? I'll do my best to help!
                         full_response = fallback_response
             
             except Exception as e:
-                # Error handling
-                error_response = f"""I encountered an issue while processing your request. 
+                # Error handling with more details
+                import traceback
+                error_details = traceback.format_exc()
+                
+                error_response = f"""❌ **Error occurred while processing your request**
+
+**Error type:** `{type(e).__name__}`
+**Error message:** `{str(e)}`
+
+**Full traceback:**
+```
+{error_details}
+```
 
 I'm designed to help with ride-share analytics including:
 - Trip volumes and trends
@@ -468,9 +489,7 @@ I'm designed to help with ride-share analytics including:
 - Rider demographics and behavior patterns
 - Data quality and utilization metrics
 
-Please try asking your question again, or contact your administrator if the issue persists.
-
-*Error details: {str(e)}*"""
+Please check your configuration and try again."""
                 
                 message_placeholder.markdown(error_response)
                 full_response = error_response
