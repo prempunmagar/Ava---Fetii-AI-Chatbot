@@ -423,13 +423,14 @@ else:
                     agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", agent_name)
                     st.write("📝 **Found environment variables - using those instead**")
                 
-                # Try different endpoint formats
+                # Try different endpoint formats based on Snowflake documentation
                 agent_endpoint_v2 = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
-                agent_endpoint_v1 = f"{base_url}/api/v1/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
-                agent_endpoint_alt = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
+                agent_endpoint_cortex = f"{base_url}/api/v2/cortex/agents/{agent_database}.{agent_schema}.{agent_name}:run"
+                agent_endpoint_simple = f"{base_url}/api/v2/cortex/agents/{agent_name}:run"
+                agent_endpoint_qualified = f"{base_url}/api/v2/cortex/agents/{agent_database}.{agent_schema}.{agent_name}/run"
                 
-                # Use the v2 format first
-                agent_endpoint = agent_endpoint_v2
+                # Try the cortex-specific format first
+                agent_endpoint = agent_endpoint_cortex
                 
                 # Debug: Show what credentials we found
                 st.write(f"🔍 **Debug Info:**")
@@ -495,35 +496,53 @@ Once configured, I'll be able to:
                 else:
                     # Try actual API call
                     st.write("🚀 **Making API call to Cortex Agent...**")
-                    st.write(f"**Primary Endpoint:** `{agent_endpoint}`")
+                    st.write(f"**Primary Endpoint (Cortex):** `{agent_endpoint}`")
                     st.write(f"**Alternative Endpoints:**")
-                    st.write(f"- V1: `{agent_endpoint_v1}`")
-                    st.write(f"- Alt: `{agent_endpoint_alt}`")
+                    st.write(f"- V2 DB: `{agent_endpoint_v2}`")
+                    st.write(f"- Simple: `{agent_endpoint_simple}`")
+                    st.write(f"- Qualified: `{agent_endpoint_qualified}`")
                     st.write(f"**Headers:** `{headers}`")
                     st.write(f"**Payload:** `{payload}`")
                     
-                    try:
-                        response = requests.post(
-                            agent_endpoint,
-                            headers=headers,
-                            json=payload,
-                            stream=True,
-                            timeout=30
-                        )
-                        st.write(f"**Response Status:** `{response.status_code}`")
-                        st.write(f"**Response Headers:** `{dict(response.headers)}`")
-                        
-                        # If we get a non-200 response, show the response body
-                        if response.status_code != 200:
-                            try:
-                                error_body = response.text
-                                st.write(f"**Error Response Body:** `{error_body}`")
-                            except:
-                                st.write("**Error Response Body:** Could not read response body")
-                                
-                    except requests.exceptions.RequestException as req_error:
-                        st.write(f"❌ **Request failed:** `{str(req_error)}`")
-                        raise req_error
+                    # Try multiple endpoints until one works
+                    endpoints_to_try = [
+                        ("Cortex", agent_endpoint_cortex),
+                        ("Simple", agent_endpoint_simple), 
+                        ("Qualified", agent_endpoint_qualified),
+                        ("V2 DB", agent_endpoint_v2)
+                    ]
+                    
+                    response = None
+                    for endpoint_name, endpoint_url in endpoints_to_try:
+                        try:
+                            st.write(f"🔄 **Trying {endpoint_name}:** `{endpoint_url}`")
+                            response = requests.post(
+                                endpoint_url,
+                                headers=headers,
+                                json=payload,
+                                stream=True,
+                                timeout=30
+                            )
+                            st.write(f"**Response Status:** `{response.status_code}`")
+                            
+                            if response.status_code == 200:
+                                st.write(f"✅ **Success with {endpoint_name} endpoint!**")
+                                break
+                            else:
+                                # Show error for non-200 responses
+                                try:
+                                    error_body = response.text
+                                    st.write(f"❌ **{endpoint_name} failed:** `{error_body}`")
+                                except:
+                                    st.write(f"❌ **{endpoint_name} failed:** Could not read response body")
+                                    
+                        except requests.exceptions.RequestException as req_error:
+                            st.write(f"❌ **{endpoint_name} request failed:** `{str(req_error)}`")
+                            continue
+                    
+                    if not response or response.status_code != 200:
+                        st.write("❌ **All endpoints failed**")
+                        raise Exception("All agent endpoints returned errors")
                     
                     if response.status_code == 200:
                         full_response = ""
