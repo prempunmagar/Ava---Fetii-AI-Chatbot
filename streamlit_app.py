@@ -394,8 +394,10 @@ else:
                     "Authorization": f"Bearer {token}"
                 }
                 
-                # Request payload for Cortex Agent
+                # Request payload for Cortex Agent (correct format from documentation)
                 payload = {
+                    "thread_id": 0,
+                    "parent_message_id": 0,
                     "messages": [
                         {
                             "role": "user", 
@@ -423,14 +425,13 @@ else:
                     agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", agent_name)
                     st.write("📝 **Found environment variables - using those instead**")
                 
-                # Try different endpoint formats based on Snowflake documentation
-                agent_endpoint_v2 = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
-                agent_endpoint_cortex = f"{base_url}/api/v2/cortex/agents/{agent_database}.{agent_schema}.{agent_name}:run"
-                agent_endpoint_simple = f"{base_url}/api/v2/cortex/agents/{agent_name}:run"
-                agent_endpoint_qualified = f"{base_url}/api/v2/cortex/agents/{agent_database}.{agent_schema}.{agent_name}/run"
+                # Correct endpoint format from Snowflake documentation
+                agent_endpoint_correct = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
+                agent_endpoint_cortex = f"{base_url}/api/v2/cortex/agent:run"
+                agent_endpoint_legacy = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
                 
-                # Try the cortex-specific format first
-                agent_endpoint = agent_endpoint_cortex
+                # Use the correct format first
+                agent_endpoint = agent_endpoint_correct
                 
                 # Debug: Show what credentials we found
                 st.write(f"🔍 **Debug Info:**")
@@ -496,20 +497,18 @@ Once configured, I'll be able to:
                 else:
                     # Try actual API call
                     st.write("🚀 **Making API call to Cortex Agent...**")
-                    st.write(f"**Primary Endpoint (Cortex):** `{agent_endpoint}`")
+                    st.write(f"**Primary Endpoint (Correct Format):** `{agent_endpoint}`")
                     st.write(f"**Alternative Endpoints:**")
-                    st.write(f"- V2 DB: `{agent_endpoint_v2}`")
-                    st.write(f"- Simple: `{agent_endpoint_simple}`")
-                    st.write(f"- Qualified: `{agent_endpoint_qualified}`")
+                    st.write(f"- Cortex Direct: `{agent_endpoint_cortex}`")
+                    st.write(f"- Legacy Format: `{agent_endpoint_legacy}`")
                     st.write(f"**Headers:** `{headers}`")
                     st.write(f"**Payload:** `{payload}`")
                     
                     # Try multiple endpoints until one works
                     endpoints_to_try = [
-                        ("Cortex", agent_endpoint_cortex),
-                        ("Simple", agent_endpoint_simple), 
-                        ("Qualified", agent_endpoint_qualified),
-                        ("V2 DB", agent_endpoint_v2)
+                        ("Correct Format", agent_endpoint_correct),
+                        ("Cortex Direct", agent_endpoint_cortex),
+                        ("Legacy Format", agent_endpoint_legacy)
                     ]
                     
                     response = None
