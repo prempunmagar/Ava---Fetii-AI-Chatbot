@@ -433,6 +433,30 @@ else:
                 st.write(f"- Base URL: `{base_url}`")
                 st.write(f"- Full Endpoint: `{agent_endpoint}`")
                 
+                # Try to find the agent if we get 404
+                st.write("🔍 **Searching for available agents...**")
+                try:
+                    # Query to find agents in the database
+                    agents_query = f"SHOW AGENTS IN DATABASE {agent_database}"
+                    agents_result = session.sql(agents_query).collect()
+                    
+                    if agents_result:
+                        st.write("📋 **Found these agents in your database:**")
+                        for row in agents_result:
+                            st.write(f"- **{row['name']}** in schema `{row['schema_name']}`")
+                    else:
+                        st.write("❌ **No agents found in database**")
+                        
+                    # Also try to show schemas
+                    schemas_query = f"SHOW SCHEMAS IN DATABASE {agent_database}"
+                    schemas_result = session.sql(schemas_query).collect()
+                    st.write("📁 **Available schemas:**")
+                    for row in schemas_result[:10]:  # Limit to first 10
+                        st.write(f"- `{row['name']}`")
+                        
+                except Exception as search_error:
+                    st.write(f"⚠️ **Could not search for agents:** {str(search_error)}")
+                
                 # Check if agent is configured
                 if not agent_database or not agent_schema:
                     # Demo mode - provide helpful response
