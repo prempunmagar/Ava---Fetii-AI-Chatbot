@@ -30,8 +30,15 @@ def get_snowflake_session():
         
         # Override with secrets if available (for production)
         if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
+            # Fix account format if it includes the full domain
+            account_from_secrets = st.secrets["snowflake"]["account"]
+            if account_from_secrets.endswith('.snowflakecomputing.com'):
+                # Extract just the account identifier
+                account_from_secrets = account_from_secrets.replace('.snowflakecomputing.com', '')
+                st.write(f"🔧 **Fixed account format:** {account_from_secrets}")
+            
             connection_params = {
-                "account": st.secrets["snowflake"]["account"],
+                "account": account_from_secrets,
                 "user": st.secrets["snowflake"]["user"],
                 "password": st.secrets["snowflake"]["password"],
                 "warehouse": st.secrets["snowflake"]["warehouse"],
