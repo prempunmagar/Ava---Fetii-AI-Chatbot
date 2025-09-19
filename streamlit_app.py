@@ -45,18 +45,17 @@ def get_snowflake_session():
         missing_params = [param for param in required_params if not connection_params.get(param)]
         
         if missing_params:
-            st.error(f"Missing Snowflake credentials: {', '.join(missing_params)}")
-            st.info("Please configure your Snowflake credentials in Streamlit secrets or environment variables.")
-            st.stop()
+            # Return None to indicate demo mode instead of stopping the app
+            return None
         
         # Create and return session
         return Session.builder.configs(connection_params).create()
         
     except Exception as e:
-        st.error(f"Failed to connect to Snowflake: {str(e)}")
-        st.info("Please check your Snowflake credentials and try again.")
-        st.stop()
+        # Return None to indicate demo mode instead of stopping the app
+        return None
 
+# Try to get Snowflake session, but allow app to run without it
 session = get_snowflake_session()
 
 # Initialize session state
@@ -246,7 +245,11 @@ if not st.session_state.show_chat:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         user_input = st.text_input("", placeholder="Ask Ava Intelligence...", label_visibility="collapsed", key="main_input")
-        st.markdown(f'<div class="mode-display">Mode: {st.session_state.get("mode", "analytics").title()} • Sources: Auto</div>', unsafe_allow_html=True)
+        
+        # Show mode and connection status
+        connection_status = "Connected" if session is not None else "Demo Mode"
+        status_color = "#22c55e" if session is not None else "#f59e0b"
+        st.markdown(f'<div class="mode-display">Mode: {st.session_state.get("mode", "analytics").title()} • Sources: Auto • <span style="color: {status_color};">⚡ {connection_status}</span></div>', unsafe_allow_html=True)
     
     # Suggested questions with proper styling
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -306,49 +309,82 @@ else:
             message_placeholder = st.empty()
             
             try:
-                # Get account URL for API call
-                account_url = session.get_current_account().strip('"')  # Remove quotes if present
-                base_url = f"https://{account_url}.snowflakecomputing.com"
-                
-                # Get session token
-                try:
-                    token = session.get_session_token() if hasattr(session, 'get_session_token') else session.sql("SELECT CURRENT_SESSION()").collect()[0][0]
-                except:
-                    token = "temp_token"  # Fallback for local testing
-                
-                # Prepare the API request
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {token}"
-                }
-                
-                # Request payload for Cortex Agent
-                payload = {
-                    "messages": [
-                        {
-                            "role": "user", 
-                            "content": [{"type": "text", "text": prompt}]
-                        }
-                    ]
-                }
-            
-                # Make API call to your Cortex agent
-                # Get agent configuration from environment/secrets
-                if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
-                    agent_database = st.secrets["snowflake"].get("database")
-                    agent_schema = st.secrets["snowflake"].get("schema")  
-                    agent_name = st.secrets["snowflake"].get("agent_name", "FETII_CHAT")
-                else:
-                    agent_database = os.getenv("SNOWFLAKE_DATABASE")
-                    agent_schema = os.getenv("SNOWFLAKE_SCHEMA")
-                    agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", "FETII_CHAT")
-                
-                agent_endpoint = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
-                
-                # Check if agent is configured
-                if not agent_database or not agent_schema:
-                    # Demo mode - provide helpful response
+                # Check if we have a valid Snowflake session
+                if session is None:
+                    # Demo mode - provide helpful response when no session available
                     demo_response = f"""Hi there! 👋
+
+I'm Ava, your ride-share analytics assistant. I can see you asked about **{prompt}** - great question!
+
+To get me fully connected to your data, you'll need to configure your Snowflake agent credentials:
+
+**For Streamlit Cloud:**
+Add these to your app secrets:
+- `SNOWFLAKE_ACCOUNT`: Your Snowflake account identifier
+- `SNOWFLAKE_USER`: Your username
+- `SNOWFLAKE_PASSWORD`: Your password
+- `SNOWFLAKE_WAREHOUSE`: Your warehouse (default: COMPUTE_WH)
+- `SNOWFLAKE_DATABASE`: Your database name
+- `SNOWFLAKE_SCHEMA`: Your schema name  
+- `SNOWFLAKE_ROLE`: Your role
+- `SNOWFLAKE_AGENT_NAME`: Your agent name (default: FETII_CHAT)
+
+**For Local Development:**
+Set these environment variables in your `.env` file.
+
+Once configured, I'll be able to:
+📊 Analyze trip volumes and trends
+📍 Search for specific venues  
+👥 Show rider demographics
+📈 Provide utilization metrics
+
+*This is a demo response - configure your agent credentials to get real analytics!*"""
+                    
+                    message_placeholder.markdown(demo_response)
+                    full_response = demo_response
+                else:
+                    # Get account URL for API call
+                    account_url = session.get_current_account().strip('"')  # Remove quotes if present
+                    base_url = f"https://{account_url}.snowflakecomputing.com"
+                    
+                    # Get session token
+                    try:
+                        token = session.get_session_token() if hasattr(session, 'get_session_token') else session.sql("SELECT CURRENT_SESSION()").collect()[0][0]
+                    except:
+                        token = "temp_token"  # Fallback for local testing
+                    # Prepare the API request
+                    headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {token}"
+                    }
+                    
+                    # Request payload for Cortex Agent
+                    payload = {
+                        "messages": [
+                            {
+                                "role": "user", 
+                                "content": [{"type": "text", "text": prompt}]
+                            }
+                        ]
+                    }
+                
+                    # Make API call to your Cortex agent
+                    # Get agent configuration from environment/secrets
+                    if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
+                        agent_database = st.secrets["snowflake"].get("database")
+                        agent_schema = st.secrets["snowflake"].get("schema")  
+                        agent_name = st.secrets["snowflake"].get("agent_name", "FETII_CHAT")
+                    else:
+                        agent_database = os.getenv("SNOWFLAKE_DATABASE")
+                        agent_schema = os.getenv("SNOWFLAKE_SCHEMA")
+                        agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", "FETII_CHAT")
+                    
+                    agent_endpoint = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
+                    
+                    # Check if agent is configured
+                    if not agent_database or not agent_schema:
+                        # Demo mode - provide helpful response
+                        demo_response = f"""Hi there! 👋
 
 I'm Ava, your ride-share analytics assistant. I can see you asked about **{prompt}** - great question!
 
@@ -370,42 +406,42 @@ Once configured, I'll be able to:
 📈 Provide utilization metrics
 
 *This is a demo response - configure your agent credentials to get real analytics!*"""
-                    
-                    message_placeholder.markdown(demo_response)
-                    full_response = demo_response
-                    
-                else:
-                    # Try actual API call
-                    response = requests.post(
-                        agent_endpoint,
-                        headers=headers,
-                        json=payload,
-                        stream=True,
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        full_response = ""
                         
-                        # Handle streaming response
-                        for line in response.iter_lines():
-                            if line:
-                                line_text = line.decode('utf-8')
-                                if line_text.startswith('data: '):
-                                    try:
-                                        data = json.loads(line_text[6:])  # Remove 'data: ' prefix
-                                        if 'text' in data:
-                                            full_response += data['text']
-                                            message_placeholder.markdown(full_response + "▌")
-                                    except json.JSONDecodeError:
-                                        continue
-                        
-                        # Final message without cursor
-                        message_placeholder.markdown(full_response)
+                        message_placeholder.markdown(demo_response)
+                        full_response = demo_response
                         
                     else:
-                        # Fallback response if API fails
-                        fallback_response = f"""I'm having trouble connecting to the analytics engine right now. 
+                        # Try actual API call
+                        response = requests.post(
+                            agent_endpoint,
+                            headers=headers,
+                            json=payload,
+                            stream=True,
+                            timeout=30
+                        )
+                        
+                        if response.status_code == 200:
+                            full_response = ""
+                            
+                            # Handle streaming response
+                            for line in response.iter_lines():
+                                if line:
+                                    line_text = line.decode('utf-8')
+                                    if line_text.startswith('data: '):
+                                        try:
+                                            data = json.loads(line_text[6:])  # Remove 'data: ' prefix
+                                            if 'text' in data:
+                                                full_response += data['text']
+                                                message_placeholder.markdown(full_response + "▌")
+                                        except json.JSONDecodeError:
+                                            continue
+                            
+                            # Final message without cursor
+                            message_placeholder.markdown(full_response)
+                            
+                        else:
+                            # Fallback response if API fails
+                            fallback_response = f"""I'm having trouble connecting to the analytics engine right now. 
 
 However, I can help you with questions about:
 
@@ -417,9 +453,9 @@ However, I can help you with questions about:
 Could you try asking your question again? I'll do my best to help!
 
 *Technical note: Response code {response.status_code}*"""
-                        
-                        message_placeholder.markdown(fallback_response)
-                        full_response = fallback_response
+                            
+                            message_placeholder.markdown(fallback_response)
+                            full_response = fallback_response
             
             except Exception as e:
                 # Error handling

@@ -3,11 +3,11 @@ channels:
   - conda-forge
   - snowflake
 dependencies:
-  - python=3.11
+  - python>=3.8,<3.13
   - streamlit
   - requests
   - pandas
   - pip
   - pip:
-    - snowflake-snowpark-python[pandas]==1.11.1
-    - snowflake-connector-python==3.6.0
+    - snowflake-snowpark-python[pandas]>=1.27.0
+    - snowflake-connector-python>=3.6.0
