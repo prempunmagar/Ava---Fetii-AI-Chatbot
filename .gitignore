@@ -52,6 +52,21 @@ config.toml
 .env.local
 .env.production
 
+# Project-specific files to exclude from public repo
+address_validator_final.py
+agent_*.md
+agent_*.py
+*_troubleshooting.sql
+*_agent_setup.sql
+*_search_setup.sql
+create_intelligence_database.sql
+DATA_QUALITY_ASSESSMENT_REPORT.md
+DEPLOYMENT_INSTRUCTIONS.md
+dimensional_model_transformer*.py
+fetti_semantic_model*.yaml
+AGENT_SETUP.md
+QUICK_DEPLOY.md
+
 # OS generated files
 .DS_Store
 .DS_Store?
