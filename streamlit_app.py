@@ -382,17 +382,31 @@ else:
                             base_url = f"https://{account_or_host}.snowflakecomputing.com" if account_or_host else ""
                 # base_url already determined above based on account/host
                 
-                # Get session token
+                # Get proper authentication token for Cortex Agent API
                 try:
-                    token = session.get_session_token() if hasattr(session, 'get_session_token') else session.sql("SELECT CURRENT_SESSION()").collect()[0][0]
-                except:
-                    token = "temp_token"  # Fallback for local testing
+                    # Try to get OAuth token or use session-based auth
+                    # For Cortex Agent API, we might need to use session auth differently
+                    
+                    # Method 1: Try session token (current approach)
+                    session_token = session.get_session_token() if hasattr(session, 'get_session_token') else session.sql("SELECT CURRENT_SESSION()").collect()[0][0]
+                    
+                    # Method 2: Try using Snowflake session directly with requests.Session
+                    # This might handle auth automatically
+                    
+                    st.write(f"🔑 **Session Token:** `{session_token}`")
+                    
+                except Exception as token_error:
+                    st.write(f"⚠️ **Token error:** {str(token_error)}")
+                    session_token = "temp_token"
                 
-                # Prepare the API request
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {token}"
-                }
+                # Try different authentication methods
+                auth_methods = [
+                    ("Bearer Token", {"Content-Type": "application/json", "Authorization": f"Bearer {session_token}"}),
+                    ("Snowflake Token", {"Content-Type": "application/json", "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT", "Authorization": f"Bearer {session_token}"}),
+                    ("Session Auth", {"Content-Type": "application/json", "Cookie": f"snowflake-session={session_token}"})
+                ]
+                
+                headers = auth_methods[0][1]  # Start with Bearer token
                 
                 # Request payload for Cortex Agent (correct format from documentation)
                 payload = {
@@ -504,7 +518,7 @@ Once configured, I'll be able to:
                     st.write(f"**Headers:** `{headers}`")
                     st.write(f"**Payload:** `{payload}`")
                     
-                    # Try multiple endpoints until one works
+                    # Try multiple endpoints and auth methods until one works
                     endpoints_to_try = [
                         ("Correct Format", agent_endpoint_correct),
                         ("Cortex Direct", agent_endpoint_cortex),
@@ -512,32 +526,39 @@ Once configured, I'll be able to:
                     ]
                     
                     response = None
+                    success = False
+                    
                     for endpoint_name, endpoint_url in endpoints_to_try:
-                        try:
-                            st.write(f"🔄 **Trying {endpoint_name}:** `{endpoint_url}`")
-                            response = requests.post(
-                                endpoint_url,
-                                headers=headers,
-                                json=payload,
-                                stream=True,
-                                timeout=30
-                            )
-                            st.write(f"**Response Status:** `{response.status_code}`")
+                        if success:
+                            break
                             
-                            if response.status_code == 200:
-                                st.write(f"✅ **Success with {endpoint_name} endpoint!**")
-                                break
-                            else:
-                                # Show error for non-200 responses
-                                try:
-                                    error_body = response.text
-                                    st.write(f"❌ **{endpoint_name} failed:** `{error_body}`")
-                                except:
-                                    st.write(f"❌ **{endpoint_name} failed:** Could not read response body")
-                                    
-                        except requests.exceptions.RequestException as req_error:
-                            st.write(f"❌ **{endpoint_name} request failed:** `{str(req_error)}`")
-                            continue
+                        for auth_name, auth_headers in auth_methods:
+                            try:
+                                st.write(f"🔄 **Trying {endpoint_name} with {auth_name}:** `{endpoint_url}`")
+                                response = requests.post(
+                                    endpoint_url,
+                                    headers=auth_headers,
+                                    json=payload,
+                                    stream=True,
+                                    timeout=30
+                                )
+                                st.write(f"**Response Status:** `{response.status_code}`")
+                                
+                                if response.status_code == 200:
+                                    st.write(f"✅ **Success with {endpoint_name} + {auth_name}!**")
+                                    success = True
+                                    break
+                                else:
+                                    # Show error for non-200 responses
+                                    try:
+                                        error_body = response.text
+                                        st.write(f"❌ **{endpoint_name} + {auth_name} failed:** `{error_body}`")
+                                    except:
+                                        st.write(f"❌ **{endpoint_name} + {auth_name} failed:** Could not read response body")
+                                        
+                            except requests.exceptions.RequestException as req_error:
+                                st.write(f"❌ **{endpoint_name} + {auth_name} request failed:** `{str(req_error)}`")
+                                continue
                     
                     if not response or response.status_code != 200:
                         st.write("❌ **All endpoints failed**")
