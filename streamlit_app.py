@@ -56,8 +56,15 @@ def get_snowflake_session():
         st.error(f"Failed to connect to Snowflake: {str(e)}")
         st.info("Please check your Snowflake credentials and try again.")
         st.stop()
+def ensure_session():
+    """Lazily initialize the global Snowflake session to avoid blocking app startup."""
+    global session
+    if 'session' not in globals() or session is None:
+        with st.spinner("Connecting to Snowflake..."):
+            session = get_snowflake_session()
 
-session = get_snowflake_session()
+# Lazy session (created on first use)
+session = None
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -306,6 +313,9 @@ else:
             message_placeholder = st.empty()
             
             try:
+                # Ensure Snowflake session exists before use
+                ensure_session()
+
                 # Get account URL for API call
                 account_url = session.get_current_account().strip('"')  # Remove quotes if present
                 base_url = f"https://{account_url}.snowflakecomputing.com"
