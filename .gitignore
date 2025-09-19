@@ -52,6 +52,10 @@ config.toml
 .env.local
 .env.production
 
+# Documentation files we want to keep
+!README.md
+!PROJECT_DESCRIPTION.md
+
 # Project-specific files to exclude from public repo
 address_validator_final.py
 agent_*.md
