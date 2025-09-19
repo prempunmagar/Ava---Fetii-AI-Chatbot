@@ -325,6 +325,9 @@ else:
 
     # Chat input (only show in chat mode)  
     if prompt := st.chat_input("Hi! Ask me anything about your ride-share data..."):
+        # Debug: Show that we received input
+        st.write(f"🔵 **Received input:** `{prompt}`")
+        
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         
@@ -335,6 +338,10 @@ else:
         # Generate response
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
+            
+            # Basic debug - should always show
+            st.write("🟢 **Starting response generation...**")
+            st.write(f"**User prompt:** `{prompt}`")
             
             try:
                 # Ensure Snowflake session exists before use
