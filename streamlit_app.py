@@ -40,9 +40,22 @@ def get_snowflake_session():
                 "role": os.getenv("SNOWFLAKE_ROLE")
             }
         
-        # Validate required parameters
-        required_params = ["account", "user", "password", "database", "schema"]
+        # Normalize account/host input: allow users to pass full host in "account"
+        account_value = connection_params.get("account")
+        if account_value:
+            value_lower = str(account_value).lower()
+            if "snowflakecomputing.com" in value_lower:
+                # Treat provided value as host and strip protocol if present
+                host_value = str(account_value).replace("https://", "").replace("http://", "")
+                connection_params["host"] = host_value
+                # Remove account to avoid conflicts; host takes precedence
+                connection_params.pop("account", None)
+
+        # Validate required parameters (accept either account or host)
+        required_params = ["user", "password", "database", "schema"]
         missing_params = [param for param in required_params if not connection_params.get(param)]
+        if not (connection_params.get("account") or connection_params.get("host")):
+            missing_params.append("account/host")
         
         if missing_params:
             st.error(f"Missing Snowflake credentials: {', '.join(missing_params)}")
@@ -316,8 +329,22 @@ else:
                 # Ensure Snowflake session exists before use
                 ensure_session()
 
-                # Get account URL for API call
-                account_url = session.get_current_account().strip('"')  # Remove quotes if present
+                # Determine base_url from either host or account
+                try:
+                    current_account = session.get_current_account().strip('"')
+                    base_url = f"https://{current_account}.snowflakecomputing.com"
+                except Exception:
+                    # If host was provided directly in secrets, prefer that
+                    if hasattr(st, 'secrets') and 'snowflake' in st.secrets and st.secrets['snowflake'].get('account', '').lower().endswith('snowflakecomputing.com'):
+                        host = st.secrets['snowflake']['account'].replace('https://', '').replace('http://', '')
+                        base_url = f"https://{host}"
+                    else:
+                        # Fallback to connection params env
+                        account_or_host = os.getenv('SNOWFLAKE_ACCOUNT', '')
+                        if account_or_host.endswith('snowflakecomputing.com'):
+                            base_url = f"https://{account_or_host}"
+                        else:
+                            base_url = f"https://{account_or_host}.snowflakecomputing.com" if account_or_host else ""
                 base_url = f"https://{account_url}.snowflakecomputing.com"
                 
                 # Get session token
