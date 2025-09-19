@@ -1,0 +1,6 @@
+name: fetii_chat_env
+channels:
+  - snowflake
+dependencies:
+  - streamlit
+  - requests

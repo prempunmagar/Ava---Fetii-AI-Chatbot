@@ -1,0 +1,741 @@
+name: FETII_RIDESHARE_ANALYTICS
+description: >
+  Production-ready semantic model for Fetti ride-share analytics with comprehensive data quality controls. Enables natural language queries about trips, riders, venues, and user behavior patterns with built-in data quality filtering. This enhanced dataset includes passenger utilization tracking, data quality flags, and validated demographics for reliable business intelligence.
+
+tables:
+  - name: DIM_ADDRESS
+    description: >
+      Enhanced address dimension containing Google-standardized addresses for pickup and dropoff locations. Includes popular venues and landmarks with preserved venue names, coordinate validation flags, and deduplication improvements for production reliability.
+    synonyms:
+      - "addresses"
+      - "locations"
+      - "places"
+      - "venues"
+      - "destinations"
+    
+    base_table:
+      database: FETII_AI
+      schema: CHATAPP
+      table: DIM_ADDRESS
+    
+    primary_key:
+      columns:
+        - address_id
+    
+    dimensions:
+      - name: address_id
+        synonyms:
+          - "address id"
+          - "location id"
+        description: Unique identifier for each address
+        expr: address_id
+        data_type: NUMBER(38,0)
+        unique: true
+      
+      - name: address_line
+        synonyms:
+          - "address"
+          - "street address"
+          - "location"
+          - "venue"
+          - "place name"
+        description: Street address or venue name including popular locations and landmarks
+        expr: address_line
+        data_type: VARCHAR(16777216)
+      
+      - name: city
+        synonyms:
+          - "city name"
+        description: City name for the address
+        expr: city
+        data_type: VARCHAR(16777216)
+      
+      - name: STATE
+        synonyms:
+          - "state name"
+        description: State abbreviation
+        expr: state
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - "TX"
+      
+      - name: COUNTRY
+        synonyms:
+          - "country name"
+        description: Country name
+        expr: country
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - "USA"
+      
+      - name: zipcode
+        synonyms:
+          - "zip code"
+          - "postal code"
+        description: Standardized 5-digit ZIP code for the address
+        expr: zipcode
+        data_type: VARCHAR(16777216)
+
+      - name: LATITUDE
+        synonyms:
+          - "lat"
+          - "latitude coordinate"
+          - "standardized latitude"
+        description: Standardized latitude coordinate for the address location
+        expr: latitude
+        data_type: NUMBER(38,7)
+      
+      - name: LONGITUDE
+        synonyms:
+          - "long"
+          - "longitude coordinate"
+          - "standardized longitude"
+        description: Standardized longitude coordinate for the address location
+        expr: longitude
+        data_type: NUMBER(38,7)
+
+      - name: coordinate_valid_flag
+        synonyms:
+          - "coordinate valid"
+          - "valid coordinates"
+          - "Austin area"
+        description: Flag indicating whether coordinates are within valid Austin area boundaries
+        expr: coordinate_valid_flag
+        data_type: BOOLEAN
+        sample_values:
+          - "TRUE"
+          - "FALSE"
+    
+    filters:
+      - name: VALID_COORDINATES_ONLY
+        synonyms:
+          - "valid locations"
+          - "Austin area only"
+        description: Addresses with coordinates validated as within Austin area
+        expr: coordinate_valid_flag = TRUE
+
+  - name: DIM_USER
+    description: >
+      Enhanced user dimension containing demographic information about ride-share users with data quality validation. Includes both riders and bookers, age validation flags, user behavior classifications, and data quality indicators for reliable demographic analysis.
+    synonyms:
+      - "users"
+      - "riders" 
+      - "customers"
+      - "people"
+      - "passengers"
+    
+    base_table:
+      database: FETII_AI
+      schema: CHATAPP
+      table: DIM_USER
+    
+    primary_key:
+      columns:
+        - user_id
+    
+    dimensions:
+      - name: user_id
+        synonyms:
+          - "user id"
+          - "customer id"
+          - "rider id"
+        description: Unique identifier for each user
+        expr: user_id
+        data_type: NUMBER(38,0)
+        unique: true
+      
+      - name: age_GROUP
+        synonyms:
+          - "age bracket"
+          - "age range"
+          - "age category"
+        description: Age group classification for demographic analysis
+        expr: age_group
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "18-25"
+          - "26-35"
+          - "36-45"
+          - "46-55"
+          - "56-65"
+          - "65+"
+          - "Under 18"
+          - "Unknown"
+      
+      - name: user_type
+        synonyms:
+          - "user category"
+          - "customer type"
+          - "user role"
+        description: Classification based on user behavior (Rider, Booker, or Both)
+        expr: user_type
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "Rider"
+          - "Both" 
+          - "Booker"
+      
+      - name: age
+        synonyms:
+          - "user age"
+          - "customer age"
+        description: Actual age of the user in years (validated for reasonableness)
+        expr: age
+        data_type: NUMBER(38,0)
+
+      - name: age_quality_flag
+        synonyms:
+          - "age quality"
+          - "age validation"
+          - "data quality"
+        description: Quality indicator for age data (Valid, Missing, Suspicious_Young, Suspicious_Old)
+        expr: age_quality_flag
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "Valid"
+          - "Missing"
+          - "Suspicious_Young"
+          - "Suspicious_Old"
+    
+    filters:
+      - name: VALID_ageS_ONLY
+        synonyms:
+          - "valid age data"
+          - "reliable ages"
+        description: Users with validated age data only
+        expr: age_quality_flag = 'Valid'
+
+      - name: ADULT_USERS
+        synonyms:
+          - "adults"
+          - "18 and over"
+        description: Users who are adults (18+) with valid age data
+        expr: age_quality_flag = 'Valid' AND age >= 18
+
+  - name: FACT_TRIP
+    description: >
+      Enhanced fact table containing ride-share trip-level data with comprehensive quality controls and utilization metrics. Separates booked vs actual passengers for accurate capacity analysis, includes data quality flags, time categorization, and weekend indicators for reliable operational insights.
+    synonyms:
+      - "trips"
+      - "rides"
+      - "journeys"
+      - "bookings"
+    
+    base_table:
+      database: FETII_AI
+      schema: CHATAPP
+      table: FACT_TRIP
+    
+    primary_key:
+      columns:
+        - trip_id
+    
+    dimensions:
+      - name: trip_id
+        synonyms:
+          - "trip id"
+          - "ride id"
+        description: Unique identifier for each trip
+        expr: trip_id
+        data_type: NUMBER(38,0)
+        unique: true
+      
+      - name: booking_user_id
+        synonyms:
+          - "booker id"
+          - "booking user"
+        description: ID of the user who booked the trip
+        expr: booking_user_id
+        data_type: NUMBER(38,0)
+      
+      - name: pickup_address_id
+        synonyms:
+          - "pickup location id"
+          - "start address id"
+        description: Address ID for pickup location
+        expr: pickup_address_id
+        data_type: NUMBER(38,0)
+      
+      - name: dropoff_address_id
+        synonyms:
+          - "dropoff location id"
+          - "destination address id"
+          - "end address id"
+        description: Address ID for dropoff location  
+        expr: dropoff_address_id
+        data_type: NUMBER(38,0)
+      
+      - name: day_of_week
+        synonyms:
+          - "day"
+          - "weekday"
+        description: Day of the week when trip occurred
+        expr: day_of_week
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "Monday"
+          - "Tuesday"
+          - "Wednesday"
+          - "Thursday"
+          - "Friday"
+          - "Saturday"
+          - "Sunday"
+      
+      - name: HOUR_OF_DAY
+        synonyms:
+          - "hour"
+          - "time of day"
+        description: Hour of day (0-23) when trip started
+        expr: hour_of_day
+        data_type: NUMBER(38,0)
+
+      - name: time_period
+        synonyms:
+          - "time of day"
+          - "day period"
+          - "time category"
+        description: Categorized time period (Morning, Afternoon, Evening, Night)
+        expr: time_period
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "Morning"
+          - "Afternoon"
+          - "Evening"
+          - "Night"
+
+      - name: is_weekend
+        synonyms:
+          - "weekend"
+          - "weekend flag"
+        description: Boolean flag indicating if trip occurred on weekend
+        expr: is_weekend
+        data_type: BOOLEAN
+        sample_values:
+          - "TRUE"
+          - "FALSE"
+      
+      - name: MONTH
+        synonyms:
+          - "month number"
+        description: Month number (1-12) when trip occurred
+        expr: month
+        data_type: NUMBER(38,0)
+      
+      - name: YEAR
+        synonyms:
+          - "year number"
+        description: Year when trip occurred
+        expr: year
+        data_type: NUMBER(38,0)
+
+      - name: data_quality_flag
+        synonyms:
+          - "quality flag"
+          - "data quality"
+          - "trip quality"
+        description: Data quality indicator (OK, No_Riders, Over_Capacity)
+        expr: data_quality_flag
+        data_type: VARCHAR(16777216)
+        is_enum: true
+        sample_values:
+          - "OK"
+          - "No_Riders"
+          - "Over_Capacity"
+
+      - name: passenger_mismatch_flag
+        synonyms:
+          - "mismatch flag"
+          - "passenger mismatch"
+        description: Flag indicating if booked passengers differ from actual riders
+        expr: passenger_mismatch_flag
+        data_type: BOOLEAN
+        sample_values:
+          - "TRUE"
+          - "FALSE"
+      
+      - name: PICKUP_LATITUDE
+        synonyms:
+          - "pickup lat"
+          - "start latitude"
+          - "original pickup latitude"
+        description: Precise latitude coordinate where trip pickup occurred
+        expr: pickup_latitude
+        data_type: NUMBER(38,7)
+      
+      - name: PICKUP_LONGITUDE
+        synonyms:
+          - "pickup long"
+          - "start longitude"
+          - "original pickup longitude"
+        description: Precise longitude coordinate where trip pickup occurred
+        expr: pickup_longitude
+        data_type: NUMBER(38,7)
+      
+      - name: DROPOFF_LATITUDE
+        synonyms:
+          - "dropoff lat"
+          - "end latitude"
+          - "original dropoff latitude"
+        description: Precise latitude coordinate where trip dropoff occurred
+        expr: dropoff_latitude
+        data_type: NUMBER(38,7)
+      
+      - name: DROPOFF_LONGITUDE
+        synonyms:
+          - "dropoff long"
+          - "end longitude"
+          - "original dropoff longitude"
+        description: Precise longitude coordinate where trip dropoff occurred
+        expr: dropoff_longitude
+        data_type: NUMBER(38,7)
+    
+    time_dimensions:
+      - name: TRIP_DATE
+        synonyms:
+          - "trip date"
+          - "ride date"
+          - "date"
+        description: Date when the trip occurred
+        expr: trip_date
+        data_type: DATE
+        unique: false
+      
+      - name: TRIP_TIME
+        synonyms:
+          - "trip time"
+          - "ride time"
+          - "start time"
+        description: Time when the trip started
+        expr: trip_time
+        data_type: TIME(9)
+        unique: false
+    
+    facts:
+      - name: booked_passengers
+        synonyms:
+          - "booked passengers"
+          - "intended passengers"
+          - "booking size"
+          - "planned capacity"
+        description: Number of passengers originally booked for the trip
+        expr: booked_passengers
+        data_type: NUMBER(38,0)
+      
+      - name: actual_riders_count
+        synonyms:
+          - "actual riders"
+          - "tracked riders"
+          - "confirmed riders"
+          - "actual passengers"
+        description: Number of riders who actually took the trip (validated count)
+        expr: actual_riders_count
+        data_type: NUMBER(38,0)
+
+      - name: utilization_rate
+        synonyms:
+          - "utilization"
+          - "capacity utilization"
+          - "fill rate"
+          - "efficiency rate"
+        description: Percentage of booked capacity actually utilized (actual/booked)
+        expr: utilization_rate
+        data_type: NUMBER(3,2)
+    
+    metrics:
+      - name: TOTAL_TRIPS
+        synonyms:
+          - "trip count"
+          - "number of trips"
+          - "ride count"
+        description: Total number of trips
+        expr: count(trip_id)
+      
+      - name: HIGH_QUALITY_TRIPS
+        synonyms:
+          - "quality trips"
+          - "clean trips"
+        description: Total number of trips with good data quality
+        expr: count(CASE WHEN data_quality_flag = 'OK' THEN trip_id END)
+      
+      - name: AVG_BOOKED_PASSENGERS_PER_TRIP
+        synonyms:
+          - "average booked"
+          - "mean booked passengers"
+        description: Average number of booked passengers per trip
+        expr: avg(booked_passengers)
+      
+      - name: AVG_ACTUAL_RIDERS_PER_TRIP
+        synonyms:
+          - "average actual riders"
+          - "mean actual riders"
+        description: Average number of actual riders per trip
+        expr: avg(actual_riders_count)
+
+      - name: AVG_utilization_rate
+        synonyms:
+          - "average utilization"
+          - "mean efficiency"
+          - "capacity utilization"
+        description: Average utilization rate across all trips
+        expr: avg(utilization_rate)
+
+      - name: WEEKEND_TRIP_COUNT
+        synonyms:
+          - "weekend trips"
+          - "weekend rides"
+        description: Total number of trips on weekends
+        expr: count(CASE WHEN is_weekend = TRUE THEN trip_id END)
+    
+    filters:
+      - name: HIGH_QUALITY_TRIPS_ONLY
+        synonyms:
+          - "quality trips"
+          - "clean data"
+          - "verified trips"
+        description: Trips with good data quality (no flags)
+        expr: data_quality_flag = 'OK' AND passenger_mismatch_flag = FALSE
+      
+      - name: WEEKEND_TRIPS
+        synonyms:
+          - "weekend"
+          - "weekend rides"
+        description: Trips that occurred on weekends
+        expr: is_weekend = TRUE
+      
+      - name: WEEKDAY_TRIPS
+        synonyms:
+          - "weekday"
+          - "business days"
+        description: Trips that occurred on weekdays
+        expr: is_weekend = FALSE
+
+      - name: HIGH_UTILIZATION_TRIPS
+        synonyms:
+          - "efficient trips"
+          - "high utilization"
+          - "full capacity"
+        description: Trips with utilization rate above 80%
+        expr: utilization_rate > 0.80
+
+      - name: MORNING_TRIPS
+        synonyms:
+          - "morning"
+          - "morning rides"
+        description: Trips that occurred in the morning (5 AM - 12 PM)
+        expr: time_period = 'Morning'
+
+      - name: EVENING_TRIPS
+        synonyms:
+          - "evening"
+          - "evening rides"
+        description: Trips that occurred in the evening (5 PM - 9 PM)
+        expr: time_period = 'Evening'
+
+  - name: FACT_TRIP_RIDERS
+    description: >
+      Validated bridge table capturing the many-to-many relationship between trips and riders with referential integrity checks. Links individual riders to shared trips, enabling detailed analysis of rider participation patterns and group ride behavior with data quality assurance.
+    synonyms:
+      - "trip riders"
+      - "rider trips"
+      - "trip participants"
+      - "passengers per trip"
+    
+    base_table:
+      database: FETII_AI
+      schema: CHATAPP
+      table: FACT_TRIP_RIDERS
+    
+    primary_key:
+      columns:
+        - trip_id
+        - rider_user_id
+    
+    dimensions:
+      - name: trip_id
+        synonyms:
+          - "trip id"
+          - "ride id"
+        description: Trip identifier linking to FACT_TRIP
+        expr: trip_id
+        data_type: NUMBER(38,0)
+      
+      - name: rider_user_id
+        synonyms:
+          - "rider id"
+          - "participant id"
+        description: User ID of the trip participant
+        expr: rider_user_id
+        data_type: NUMBER(38,0)
+    
+    metrics:
+      - name: TOTAL_TRIP_PARTICIPATIONS
+        synonyms:
+          - "total participations"
+          - "rider trip count"
+        description: Total number of trip participations
+        expr: count(*)
+      
+      - name: UNIQUE_RIDERS
+        synonyms:
+          - "distinct riders"
+          - "number of unique riders"
+        description: Count of unique riders
+        expr: count(DISTINCT rider_user_id)
+
+      - name: UNIQUE_TRIPS_WITH_RIDERS
+        synonyms:
+          - "trips with riders"
+          - "active trips"
+        description: Count of unique trips that had riders
+        expr: count(DISTINCT trip_id)
+
+relationships:
+  - name: TRIP_TO_PICKUP_ADDRESS
+    left_table: FACT_TRIP
+    right_table: DIM_ADDRESS
+    relationship_columns:
+      - left_column: pickup_address_id
+        right_column: address_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+  - name: TRIP_TO_DROPOFF_ADDRESS
+    left_table: FACT_TRIP
+    right_table: DIM_ADDRESS
+    relationship_columns:
+      - left_column: dropoff_address_id
+        right_column: address_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+  - name: TRIP_TO_BOOKING_USER
+    left_table: FACT_TRIP
+    right_table: DIM_USER
+    relationship_columns:
+      - left_column: booking_user_id
+        right_column: user_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+  - name: TRIP_RIDERS_TO_TRIP
+    left_table: FACT_TRIP_RIDERS
+    right_table: FACT_TRIP
+    relationship_columns:
+      - left_column: trip_id
+        right_column: trip_id
+    join_type: inner
+    relationship_type: many_to_one
+
+  - name: TRIP_RIDERS_TO_USER
+    left_table: FACT_TRIP_RIDERS
+    right_table: DIM_USER
+    relationship_columns:
+      - left_column: rider_user_id
+        right_column: user_id
+    join_type: left_outer
+    relationship_type: many_to_one
+
+verified_queries:
+  - name: "High quality trips by day of week"
+    question: "How many high-quality trips happened on each day of the week?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT 
+        day_of_week,
+        COUNT(CASE WHEN data_quality_flag = 'OK' THEN trip_id END) as high_quality_trips,
+        COUNT(trip_id) as total_trips,
+        ROUND(COUNT(CASE WHEN data_quality_flag = 'OK' THEN trip_id END) * 100.0 / COUNT(trip_id), 2) as quality_percentage
+      FROM FACT_TRIP
+      GROUP BY day_of_week
+      ORDER BY high_quality_trips DESC
+
+  - name: "Utilization rates by time period"
+    question: "What are the average utilization rates by time of day?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT 
+        time_period,
+        ROUND(AVG(utilization_rate) * 100, 2) as avg_utilization_percentage,
+        COUNT(trip_id) as trip_count,
+        ROUND(AVG(booked_passengers), 2) as avg_booked,
+        ROUND(AVG(actual_riders_count), 2) as avg_actual
+      FROM FACT_TRIP
+      WHERE data_quality_flag = 'OK'
+      GROUP BY time_period
+      ORDER BY avg_utilization_percentage DESC
+
+  - name: "Valid user demographics by age group"
+    question: "What is the distribution of users by age group (excluding suspicious ages)?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT 
+        u.age_group,
+        u.age_quality_flag,
+        COUNT(*) as user_count,
+        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as percentage
+      FROM DIM_USER u
+      WHERE u.age_quality_flag = 'Valid'
+      GROUP BY u.age_group, u.age_quality_flag
+      ORDER BY user_count DESC
+
+  - name: "Most popular pickup locations (validated coordinates only)"
+    question: "What are the top 10 most popular pickup locations with valid coordinates?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT 
+        a.address_line,
+        a.city,
+        a.zipcode,
+        COUNT(f.trip_id) as trip_count,
+        ROUND(AVG(f.utilization_rate) * 100, 2) as avg_utilization_pct
+      FROM FACT_TRIP f
+      JOIN DIM_ADDRESS a ON f.pickup_address_id = a.address_id
+      WHERE a.coordinate_valid_flag = TRUE 
+        AND f.data_quality_flag = 'OK'
+      GROUP BY a.address_line, a.city, a.zipcode
+      ORDER BY trip_count DESC
+      LIMIT 10
+
+  - name: "Weekend vs weekday utilization comparison"
+    question: "How do utilization rates compare between weekends and weekdays?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: true
+    sql: |
+      SELECT 
+        CASE WHEN is_weekend THEN 'Weekend' ELSE 'Weekday' END as day_type,
+        COUNT(trip_id) as total_trips,
+        ROUND(AVG(utilization_rate) * 100, 2) as avg_utilization_pct,
+        ROUND(AVG(booked_passengers), 2) as avg_booked,
+        ROUND(AVG(actual_riders_count), 2) as avg_actual,
+        COUNT(CASE WHEN utilization_rate > 0.80 THEN 1 END) as high_utilization_trips
+      FROM FACT_TRIP
+      WHERE data_quality_flag = 'OK'
+      GROUP BY is_weekend
+      ORDER BY avg_utilization_pct DESC
+
+  - name: "Rider engagement by validated user type"
+    question: "How many trips do different user types take on average (using validated data only)?"
+    verified_by: "Data Analyst"
+    use_as_onboarding_question: false
+    sql: |
+      SELECT 
+        u.user_type,
+        COUNT(tr.trip_id) as total_participations,
+        COUNT(DISTINCT tr.rider_user_id) as unique_riders,
+        ROUND(COUNT(tr.trip_id) * 1.0 / COUNT(DISTINCT tr.rider_user_id), 2) as avg_trips_per_rider,
+        COUNT(CASE WHEN f.data_quality_flag = 'OK' THEN tr.trip_id END) as quality_participations
+      FROM FACT_TRIP_RIDERS tr
+      JOIN DIM_USER u ON tr.rider_user_id = u.user_id
+      JOIN FACT_TRIP f ON tr.trip_id = f.trip_id
+      WHERE u.age_quality_flag = 'Valid'
+      GROUP BY u.user_type
+      ORDER BY avg_trips_per_rider DESC

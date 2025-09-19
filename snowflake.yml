@@ -1,0 +1,10 @@
+definition_version: 1
+streamlit:
+  name: fetii_chat
+  stage: fetii_chat_stage
+  warehouse: COMPUTE_WH
+  main_file: streamlit_app.py
+  environment_file: environment.yml
+  pages_dir: null
+  title: "FETII CHAT - Ride Share Analytics"
+  query_warehouse: COMPUTE_WH
