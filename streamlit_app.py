@@ -423,7 +423,13 @@ else:
                     agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", agent_name)
                     st.write("📝 **Found environment variables - using those instead**")
                 
-                agent_endpoint = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
+                # Try different endpoint formats
+                agent_endpoint_v2 = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
+                agent_endpoint_v1 = f"{base_url}/api/v1/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
+                agent_endpoint_alt = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
+                
+                # Use the v2 format first
+                agent_endpoint = agent_endpoint_v2
                 
                 # Debug: Show what credentials we found
                 st.write(f"🔍 **Debug Info:**")
@@ -489,7 +495,10 @@ Once configured, I'll be able to:
                 else:
                     # Try actual API call
                     st.write("🚀 **Making API call to Cortex Agent...**")
-                    st.write(f"**Endpoint:** `{agent_endpoint}`")
+                    st.write(f"**Primary Endpoint:** `{agent_endpoint}`")
+                    st.write(f"**Alternative Endpoints:**")
+                    st.write(f"- V1: `{agent_endpoint_v1}`")
+                    st.write(f"- Alt: `{agent_endpoint_alt}`")
                     st.write(f"**Headers:** `{headers}`")
                     st.write(f"**Payload:** `{payload}`")
                     
@@ -503,6 +512,15 @@ Once configured, I'll be able to:
                         )
                         st.write(f"**Response Status:** `{response.status_code}`")
                         st.write(f"**Response Headers:** `{dict(response.headers)}`")
+                        
+                        # If we get a non-200 response, show the response body
+                        if response.status_code != 200:
+                            try:
+                                error_body = response.text
+                                st.write(f"**Error Response Body:** `{error_body}`")
+                            except:
+                                st.write("**Error Response Body:** Could not read response body")
+                                
                     except requests.exceptions.RequestException as req_error:
                         st.write(f"❌ **Request failed:** `{str(req_error)}`")
                         raise req_error
