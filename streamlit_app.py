@@ -51,16 +51,24 @@ def get_snowflake_session():
                 "role": os.getenv("SNOWFLAKE_ROLE")
             }
         
+        # Debug connection params before normalization
+        st.write(f"🔍 **Connection params before normalization:** {connection_params}")
+        
         # Normalize account/host input: allow users to pass full host in "account"
         account_value = connection_params.get("account")
         if account_value:
             value_lower = str(account_value).lower()
+            st.write(f"🔍 **Account value:** {account_value}, **Lower:** {value_lower}")
             if "snowflakecomputing.com" in value_lower:
                 # Treat provided value as host and strip protocol if present
                 host_value = str(account_value).replace("https://", "").replace("http://", "")
                 connection_params["host"] = host_value
                 # Remove account to avoid conflicts; host takes precedence
                 connection_params.pop("account", None)
+                st.write(f"🔍 **Converted to host:** {host_value}")
+        
+        # Debug connection params after normalization
+        st.write(f"🔍 **Connection params after normalization:** {connection_params}")
 
         # Validate required parameters (accept either account or host)
         required_params = ["user", "password", "database", "schema"]
@@ -423,7 +431,7 @@ else:
                     # Demo mode - provide helpful response
                     demo_response = f"""Hi there! 👋
 
-I'm Ava, your ride-share analytics assistant. I can see you asked about **{prompt}** - great question!
+I'm your ride-share analytics assistant. I can see you asked about **{prompt}** - great question!
 
 To get me fully connected to your data, you'll need to configure your Snowflake agent credentials:
 
