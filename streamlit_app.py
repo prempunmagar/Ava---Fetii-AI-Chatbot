@@ -409,7 +409,7 @@ else:
                 st.write("🔧 **Using hardcoded secrets for debugging**")
                 agent_database = "SNOWFLAKE_INTELLIGENCE"
                 agent_schema = "AGENTS"
-                agent_name = "FETII_CHAT"  # Correct agent name from documentation
+                agent_name = "AVA"  # Correct agent name confirmed by user
                 
                 # Override with secrets/env if available (for production)
                 if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
