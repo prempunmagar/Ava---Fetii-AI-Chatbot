@@ -8,18 +8,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    // Get environment variables
-    const PAT_TOKEN = process.env.SNOWFLAKE_PAT_TOKEN
-    const SNOWFLAKE_ACCOUNT = process.env.SNOWFLAKE_ACCOUNT || 'NBHIMLC-WB58290'
-    const AGENT_NAME = process.env.AGENT_NAME || 'AVA'
-    const DATABASE = process.env.DATABASE || 'SNOWFLAKE_INTELLIGENCE'
-    const SCHEMA = process.env.SCHEMA || 'AGENTS'
-
-    if (!PAT_TOKEN || PAT_TOKEN === 'your-pat-token-here') {
-      return NextResponse.json({ 
-        error: 'Snowflake PAT token not configured. Please set SNOWFLAKE_PAT_TOKEN environment variable.' 
-      }, { status: 500 })
-    }
+    // Hardcoded configuration - no environment variables needed
+    const PAT_TOKEN = "eyJraWQiOiI5OTQ2OTc2Mjk3IiwiYWxnIjoiRVMyNTYifQ.eyJwIjoiMzg4NTUxNzI6Mzg4NTUzMDAiLCJpc3MiOiJTRjoyMDEwIiwiZXhwIjoxNzg5ODczODg5fQ.46w3EFxi4OJQhWpOk0BLBgLZgxqC1_1LkqzibPKImJaKYwxQ6SsspeYLszF87k52iVlBZjsgRGrYAuF582eBiA"
+    const SNOWFLAKE_ACCOUNT = 'NBHIMLC-WB58290'
+    const AGENT_NAME = 'AVA'
+    const DATABASE = 'SNOWFLAKE_INTELLIGENCE'
+    const SCHEMA = 'AGENTS'
 
     // Correct Snowflake Cortex Agent API endpoint
     const agentEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
