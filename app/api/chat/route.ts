@@ -15,77 +15,56 @@ export async function POST(request: NextRequest) {
     const DATABASE = 'SNOWFLAKE_INTELLIGENCE'
     const SCHEMA = 'AGENTS'
 
-    // Try multiple Snowflake Cortex Agent API endpoint formats
-    const endpoints = [
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`,
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/agents/${AGENT_NAME}:run`
-    ]
+    // Correct Snowflake Cortex Agent API endpoint format from official docs
+    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Prepare request payload for Snowflake Cortex Agent
+    // Correct request payload structure for Snowflake Cortex Agent (from official docs)
     const payload = {
-      model: "llama3.1-70b",
       messages: [
         {
           role: "user",
           content: [
             {
-              type: "text",
+              type: "text", 
               text: message
             }
           ]
         }
       ],
-      tools: [
-        {
-          tool_spec: {
-            type: "cortex_analyst_text_to_sql",
-            name: "analyst1"
-          }
-        }
-      ]
+      thread_id: 0,
+      parent_message_id: 0
     }
 
+    // Correct headers format from official documentation
     const headers = {
+      'Accept': 'application/json',
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${PAT_TOKEN}`
+      'Authorization': `Bearer ${PAT_TOKEN}`,
+      'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT'
     }
 
-    let response
-    let lastError = ''
-    
-    // Try each endpoint until one works
-    for (const endpoint of endpoints) {
-      try {
-        console.log('Trying endpoint:', endpoint)
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload)
-        })
+    console.log('Making request to:', AGENT_ENDPOINT)
+    console.log('Payload:', JSON.stringify(payload, null, 2))
+    console.log('Headers:', headers)
+
+    try {
+      const response = await fetch(AGENT_ENDPOINT, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      })
+
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('API Error:', errorText)
         
-        if (response.ok) {
-          console.log('Success with endpoint:', endpoint)
-          break
-        } else {
-          const errorText = await response.text()
-          lastError = `${endpoint}: ${response.status} - ${errorText}`
-          console.log('Failed with endpoint:', lastError)
-          continue
-        }
-      } catch (error) {
-        lastError = `${endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        console.log('Error with endpoint:', lastError)
-        continue
+        return NextResponse.json({ 
+          error: `Snowflake API error (${response.status}): ${errorText}` 
+        }, { status: response.status })
       }
-    }
-
-    if (!response || !response.ok) {
-      console.error('All endpoints failed. Last error:', lastError)
-      return NextResponse.json({ 
-        error: `All Snowflake API endpoints failed. Last error: ${lastError}` 
-      }, { status: 401 })
-    }
 
     console.log('Response status:', response.status)
     console.log('Response headers:', Object.fromEntries(response.headers.entries()))
