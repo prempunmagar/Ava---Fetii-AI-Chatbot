@@ -112,14 +112,19 @@ export async function POST(request: NextRequest) {
         const errorText = await response.text()
         console.error('Main API Error:', errorText)
         
-        // Return detailed debug info
+        // Return comprehensive debug info including all tests
         return NextResponse.json({ 
           error: `Debug Info - Status: ${response.status}, Error: ${errorText}`,
           debug: {
             endpoint: AGENT_ENDPOINT,
             status: response.status,
             errorText: errorText,
-            headers: Object.fromEntries(response.headers.entries())
+            headers: Object.fromEntries(response.headers.entries()),
+            account: SNOWFLAKE_ACCOUNT,
+            database: DATABASE,
+            schema: SCHEMA,
+            agent: AGENT_NAME,
+            tokenPreview: PAT_TOKEN.substring(0, 10) + '...'
           }
         }, { status: response.status })
       }

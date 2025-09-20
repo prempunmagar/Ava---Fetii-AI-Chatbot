@@ -46,6 +46,11 @@ export default function ChatPage() {
       const data = await response.json()
       
       if (data.error) {
+        // If there's debug info, include it in the error
+        if (data.debug) {
+          const debugInfo = JSON.stringify(data.debug, null, 2)
+          throw new Error(`${data.error}\n\nDEBUG INFO:\n${debugInfo}`)
+        }
         throw new Error(data.error)
       }
 
