@@ -2,6 +2,8 @@
 
 A modern React-based chatbot interface for Snowflake Cortex Agent integration.
 
+🚀 **Ready for Vercel deployment with hardcoded configuration!**
+
 ## 🚀 Quick Deploy to Vercel
 
 ### 1. Push to GitHub
