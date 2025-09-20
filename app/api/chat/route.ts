@@ -15,18 +15,12 @@ export async function POST(request: NextRequest) {
     const DATABASE = 'SNOWFLAKE_INTELLIGENCE'
     const SCHEMA = 'AGENTS'
 
-    // Try different endpoint formats for Cortex Agent
-    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/messages`
-    const AGENT_ENDPOINT_ALT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
+    // Back to original :run endpoint since docs don't specify exact format
+    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Try minimal payload for existing agent
+    // Try even simpler payload - just the message text
     const payload = {
-      messages: [
-        {
-          role: "user",
-          content: message
-        }
-      ]
+      message: message
     }
 
     // Correct headers format for PAT token authentication
