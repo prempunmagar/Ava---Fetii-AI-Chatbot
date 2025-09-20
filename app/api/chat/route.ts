@@ -203,6 +203,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ response: responseText })
     }
 
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError)
+      return NextResponse.json({ 
+        error: `Fetch error: ${fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'}` 
+      }, { status: 500 })
+    }
+
   } catch (error) {
     console.error('Server error:', error)
     return NextResponse.json({ 
