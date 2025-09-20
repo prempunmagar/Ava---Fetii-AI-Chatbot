@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
     // Back to original :run endpoint since docs don't specify exact format
     const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Correct payload format from Snowflake documentation
+    // Minimum required payload format from Snowflake documentation
     const payload = {
-      thread_id: null, // Start new thread for each message
-      parent_message_id: null,
+      thread_id: "0", // Use string "0" for new conversation
+      parent_message_id: "0", // Use string "0" for new conversation
       messages: [
         {
           role: "user",
@@ -32,11 +32,7 @@ export async function POST(request: NextRequest) {
             }
           ]
         }
-      ],
-      tool_choice: {
-        type: "auto",
-        name: []
-      }
+      ]
     }
 
     // Correct headers format for PAT token authentication
