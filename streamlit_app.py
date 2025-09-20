@@ -27,8 +27,8 @@ except:
     DATABASE = os.getenv("DATABASE", "SNOWFLAKE_INTELLIGENCE")
     SCHEMA = os.getenv("SCHEMA", "AGENTS")
 
-# Correct Snowflake Cortex Agent API endpoint
-AGENT_ENDPOINT = f"https://{SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/agents/{AGENT_NAME}/execute"
+# Correct Snowflake Cortex Agent API endpoint  
+AGENT_ENDPOINT = f"https://{SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/{DATABASE}/schemas/{SCHEMA}/agents/{AGENT_NAME}:run"
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -277,25 +277,41 @@ else:
             message_placeholder = st.empty()
             
             try:
-                # Prepare request payload for Snowflake Cortex Agent
+                # Prepare request payload for Snowflake Cortex Agent (correct format)
                 payload = {
-                    "query": prompt,
-                    "agent_name": AGENT_NAME,
-                    "database": DATABASE,
-                    "schema": SCHEMA
+                    "model": "llama3.1-70b",  # Default model for orchestration
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ],
+                    "tools": [
+                        {
+                            "tool_spec": {
+                                "type": "cortex_analyst_text_to_sql",
+                                "name": "analyst1"
+                            }
+                        }
+                    ]
                 }
 
                 # Make request to agent endpoint
                 headers = {
                     "Content-Type": "application/json", 
-                    "Authorization": f"Bearer {PAT_TOKEN}",
-                    "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT"
+                    "Authorization": f"Bearer {PAT_TOKEN}"
                 }
                 
                 response = requests.post(
                     AGENT_ENDPOINT,
                     headers=headers,
                     json=payload,
+                    stream=True,  # Enable streaming for Cortex Agent
                     timeout=60
                 )
                 
@@ -304,24 +320,67 @@ else:
                     st.error(f"Response: {response.text}")
                     full_response = "Sorry, I encountered an error processing your request."
                 else:
-                    response_data = response.json()
+                    full_response = ""
                     
-                    # Handle different response formats
-                    if 'result' in response_data:
-                        full_response = response_data['result']
-                    elif 'response' in response_data:
-                        full_response = response_data['response']
-                    elif 'message' in response_data:
-                        full_response = response_data['message']
-                    else:
-                        full_response = str(response_data)
+                    # Handle streaming response from Cortex Agent
+                    for line in response.iter_lines():
+                        if line:
+                            line_text = line.decode('utf-8')
+                            
+                            # Handle Server-Sent Events format
+                            if line_text.startswith('data: '):
+                                try:
+                                    data_content = line_text[6:]  # Remove 'data: ' prefix
+                                    
+                                    # Skip keep-alive messages
+                                    if data_content.strip() == '[DONE]' or not data_content.strip():
+                                        continue
+                                        
+                                    data = json.loads(data_content)
+                                    
+                                    # Extract content from different possible response structures
+                                    if 'choices' in data and len(data['choices']) > 0:
+                                        choice = data['choices'][0]
+                                        if 'delta' in choice and 'content' in choice['delta']:
+                                            content = choice['delta']['content']
+                                            if content:
+                                                full_response += content
+                                                message_placeholder.markdown(full_response + "▌")
+                                        elif 'message' in choice and 'content' in choice['message']:
+                                            content = choice['message']['content']
+                                            if content:
+                                                full_response += content
+                                                message_placeholder.markdown(full_response + "▌")
+                                    elif 'content' in data:
+                                        content = data['content']
+                                        if content:
+                                            full_response += content
+                                            message_placeholder.markdown(full_response + "▌")
+                                    elif 'text' in data:
+                                        content = data['text']
+                                        if content:
+                                            full_response += content
+                                            message_placeholder.markdown(full_response + "▌")
+                                            
+                                except json.JSONDecodeError:
+                                    continue
                     
-                    # Simulate typing effect
-                    words = full_response.split()
-                    displayed_text = ""
-                    for word in words:
-                        displayed_text += word + " "
-                        message_placeholder.markdown(displayed_text + "▌")
+                    # Final message without cursor
+                    if not full_response:
+                        # Fallback: try to parse as regular JSON response
+                        try:
+                            response_data = response.json()
+                            if 'choices' in response_data and len(response_data['choices']) > 0:
+                                full_response = response_data['choices'][0].get('message', {}).get('content', 'No response received')
+                            elif 'content' in response_data:
+                                full_response = response_data['content']
+                            elif 'text' in response_data:
+                                full_response = response_data['text']
+                            else:
+                                full_response = "Received response but couldn't parse content"
+                        except:
+                            full_response = "No response received from the agent"
+                    
                     message_placeholder.markdown(full_response)
             
             except Exception as e:
