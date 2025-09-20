@@ -1,37 +1,19 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, BarChart3, Search, ArrowLeft, MessageCircle, Trash2 } from 'lucide-react'
+import { Send, Search, MessageCircle } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
-interface Mode {
-  id: 'analytics' | 'research'
-  name: string
-  icon: React.ReactNode
-}
-
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showChat, setShowChat] = useState(false)
   const [mode, setMode] = useState<'analytics' | 'research'>('analytics')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const modes: Mode[] = [
-    { id: 'analytics', name: 'Analytics', icon: <BarChart3 size={16} /> },
-    { id: 'research', name: 'Research', icon: <Search size={16} /> }
-  ]
-
-  const suggestedQuestions = [
-    { text: "Show me daily trip volumes for last week", emoji: "📊", category: "Analytics" },
-    { text: "What's the difference between booked vs actual riders?", emoji: "📈", category: "Analytics" },
-    { text: "What age groups ride most on weekends?", emoji: "👥", category: "Demographics" }
-  ]
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -41,13 +23,6 @@ export default function ChatPage() {
     scrollToBottom()
   }, [messages])
 
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return "Good morning"
-    if (hour < 18) return "Good afternoon"
-    return "Good evening"
-  }
-
   const handleSend = async (message?: string) => {
     const messageToSend = message || input
     if (!messageToSend.trim()) return
@@ -56,7 +31,6 @@ export default function ChatPage() {
     setMessages(prev => [...prev, newMessage])
     setInput('')
     setLoading(true)
-    setShowChat(true)
 
     try {
       const response = await fetch('/api/chat', {
@@ -92,179 +66,131 @@ export default function ChatPage() {
     }
   }
 
-  const handleSuggestedQuestion = (question: string) => {
-    handleSend(question)
+  const handleResearch = () => {
+    setMode(mode === 'research' ? 'analytics' : 'research')
   }
 
-  const clearChat = () => {
-    setMessages([])
-  }
-
-  const goHome = () => {
-    setShowChat(false)
-  }
-
-  if (!showChat) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-8 py-16">
-          {/* Header */}
-          <div className="text-center mb-16">
-            <h1 className="text-5xl font-normal text-gray-900 mb-4">
-              {getGreeting()}
-            </h1>
-            <h2 className="text-3xl font-normal text-blue-600 mb-12">
-              What insights can I help with?
-            </h2>
+  return (
+    <div className="flex flex-col h-screen bg-white">
+      {/* Header */}
+      <div className="border-b border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <MessageCircle className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-semibold text-gray-900">Ava</h1>
+            <span className="text-sm text-gray-500">Fetii AI Analytics</span>
           </div>
-
-          {/* Mode Buttons */}
-          <div className="flex justify-center gap-3 mb-8">
-            {modes.map((modeOption) => (
-              <button
-                key={modeOption.id}
-                onClick={() => setMode(modeOption.id)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg border transition-colors ${
-                  mode === modeOption.id
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {modeOption.icon}
-                {modeOption.name}
-              </button>
-            ))}
+          <div className="text-sm text-gray-500">
+            Mode: {mode === 'analytics' ? 'Analytics' : 'Research'}
           </div>
+        </div>
+      </div>
 
-          {/* Main Input */}
-          <div className="max-w-2xl mx-auto mb-4">
-            <div className="relative">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          {messages.length === 0 ? (
+            // Welcome Screen
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <div className="mb-8">
+                <MessageCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                  Hi! I'm Ava, your analytics assistant
+                </h2>
+                <p className="text-gray-600">
+                  Ask me about your ride-share data, trip patterns, or venue insights
+                </p>
+              </div>
+              
+              {/* Suggested Questions */}
+              <div className="w-full max-w-2xl space-y-3">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Try these questions:</h3>
+                {[
+                  "Show me daily trip volumes for last week",
+                  "What's the difference between booked vs actual riders?", 
+                  "What age groups ride most on weekends?"
+                ].map((question, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSend(question)}
+                    className="w-full p-3 text-left border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            // Chat Messages
+            <div className="p-4 space-y-6">
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-3xl p-4 rounded-lg ${
+                      message.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                  </div>
+                </div>
+              ))}
+              
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="max-w-3xl p-4 bg-gray-100 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                      <span className="text-sm text-gray-600">Ava is thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Input Area */}
+      <div className="border-t border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Ask Ava Intelligence..."
-                className="w-full px-4 py-4 text-lg border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
+                placeholder="Ask about your ride-share data..."
+                disabled={loading}
+                className="w-full px-4 py-3 pr-24 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 text-sm"
               />
-              <button
-                onClick={() => handleSend()}
-                disabled={!input.trim()}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50"
-              >
-                <Send size={20} />
-              </button>
-            </div>
-            <div className="text-center text-sm text-gray-500 italic mt-2">
-              Mode: {mode.charAt(0).toUpperCase() + mode.slice(1)} • Sources: Auto
-            </div>
-          </div>
-
-          {/* Suggested Questions */}
-          <div className="max-w-2xl mx-auto space-y-3 mt-12">
-            {suggestedQuestions.map((question, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestedQuestion(question.text)}
-                className="w-full p-4 text-left border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all duration-200 flex items-center gap-3"
-              >
-                <span className="text-lg">{question.emoji}</span>
-                <span className="text-gray-700">{question.text}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Chat Header */}
-      <div className="border-b border-gray-200 p-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={goHome}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft size={20} />
-              Back to Home
-            </button>
-            <div className="h-6 w-px bg-gray-300" />
-            <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <MessageCircle size={20} />
-                Ava - Fetii AI Chat
-              </h3>
-              <p className="text-sm text-gray-500">Sources: Auto</p>
-            </div>
-          </div>
-          
-          <button
-            onClick={clearChat}
-            className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <Trash2 size={16} />
-            Clear Chat
-          </button>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-4 space-y-6">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-3xl p-4 rounded-lg ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{message.content}</div>
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                <button
+                  onClick={handleResearch}
+                  className={`p-2 rounded-md transition-colors ${
+                    mode === 'research' 
+                      ? 'bg-blue-100 text-blue-600' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  title="Toggle Research Mode"
+                >
+                  <Search size={16} />
+                </button>
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!input.trim() || loading}
+                  className="p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50 disabled:hover:text-gray-400"
+                >
+                  <Send size={16} />
+                </button>
               </div>
             </div>
-          ))}
-          
-          {loading && (
-            <div className="flex gap-4 justify-start">
-              <div className="max-w-3xl p-4 bg-gray-100 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-gray-600">Ava is thinking...</span>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input */}
-      <div className="border-t border-gray-200 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !loading && handleSend()}
-              placeholder="Hi! Ask me anything about your ride-share data..."
-              disabled={loading}
-              className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || loading}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-blue-600 disabled:opacity-50"
-            >
-              <Send size={20} />
-            </button>
           </div>
         </div>
       </div>
