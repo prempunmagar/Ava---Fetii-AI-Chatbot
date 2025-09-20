@@ -39,19 +39,15 @@ export default function ChatPage() {
         body: JSON.stringify({ message: messageToSend })
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
       const data = await response.json()
       
-      if (data.error) {
+      if (!response.ok || data.error) {
         // If there's debug info, include it in the error
         if (data.debug) {
           const debugInfo = JSON.stringify(data.debug, null, 2)
-          throw new Error(`${data.error}\n\nDEBUG INFO:\n${debugInfo}`)
+          throw new Error(`${data.error || `HTTP error! status: ${response.status}`}\n\nDEBUG INFO:\n${debugInfo}`)
         }
-        throw new Error(data.error)
+        throw new Error(data.error || `HTTP error! status: ${response.status}`)
       }
 
       const assistantMessage: Message = { 
