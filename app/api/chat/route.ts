@@ -47,6 +47,31 @@ export async function POST(request: NextRequest) {
     console.log('Payload:', JSON.stringify(payload, null, 2))
     console.log('Headers:', headers)
 
+    // First, let's try to list available agents to debug
+    const listEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents`
+    
+    console.log('🔍 DEBUGGING: Checking available agents...')
+    console.log('List endpoint:', listEndpoint)
+    
+    try {
+      const listResponse = await fetch(listEndpoint, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT'
+        }
+      })
+      
+      console.log('List agents response status:', listResponse.status)
+      const listText = await listResponse.text()
+      console.log('Available agents:', listText)
+      
+    } catch (listError) {
+      console.log('Error listing agents:', listError)
+    }
+
+    // Now try the main API call
     try {
       const response = await fetch(AGENT_ENDPOINT, {
         method: 'POST',
@@ -54,15 +79,22 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(payload)
       })
 
-      console.log('Response status:', response.status)
+      console.log('Main API Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API Error:', errorText)
+        console.error('Main API Error:', errorText)
         
+        // Return detailed debug info
         return NextResponse.json({ 
-          error: `Snowflake API error (${response.status}): ${errorText}` 
+          error: `Debug Info - Status: ${response.status}, Error: ${errorText}`,
+          debug: {
+            endpoint: AGENT_ENDPOINT,
+            status: response.status,
+            errorText: errorText,
+            headers: Object.fromEntries(response.headers.entries())
+          }
         }, { status: response.status })
       }
 
