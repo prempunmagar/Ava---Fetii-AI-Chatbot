@@ -15,8 +15,9 @@ export async function POST(request: NextRequest) {
     const DATABASE = 'SNOWFLAKE_INTELLIGENCE'
     const SCHEMA = 'AGENTS'
 
-    // Correct Snowflake Cortex Agent API endpoint format from official docs
-    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
+    // Try different endpoint formats for Cortex Agent
+    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/messages`
+    const AGENT_ENDPOINT_ALT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
     // Try minimal payload for existing agent
     const payload = {
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest) {
     console.log('Making request to:', AGENT_ENDPOINT)
     console.log('Payload:', JSON.stringify(payload, null, 2))
     console.log('Headers:', headers)
+    console.log('Request method: POST')
+    console.log('Content-Length:', JSON.stringify(payload).length)
 
     // COMPREHENSIVE DEBUGGING - Test multiple endpoints and permissions
     console.log('🔍 COMPREHENSIVE 401 DEBUGGING...')
