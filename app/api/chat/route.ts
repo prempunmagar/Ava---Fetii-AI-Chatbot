@@ -18,31 +18,14 @@ export async function POST(request: NextRequest) {
     // Correct Snowflake Cortex Agent API endpoint format from official docs
     const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Correct request payload structure for Snowflake Cortex Agent (from official docs)
+    // Try minimal payload for existing agent
     const payload = {
-      model: "claude-4-sonnet",
-      experimental: {
-        EnableRelatedQueries: true
-      },
       messages: [
         {
           role: "user",
           content: message
         }
-      ],
-      tools: [
-        {
-          tool_spec: {
-            type: "cortex_analyst_text_to_sql",
-            name: "analyst1"
-          }
-        }
-      ],
-      tool_resources: {
-        analyst1: {
-          semantic_model_file: "@SNOWFLAKE_INTELLIGENCE.AGENTS.stage/semantic_model.yaml"
-        }
-      }
+      ]
     }
 
     // Correct headers format for PAT token authentication
