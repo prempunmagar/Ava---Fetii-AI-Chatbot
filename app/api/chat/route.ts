@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
     // Correct request payload structure for Snowflake Cortex Agent (from official docs)
+    // Remove thread_id and parent_message_id to start a new conversation thread
     const payload = {
       messages: [
         {
@@ -30,9 +31,7 @@ export async function POST(request: NextRequest) {
             }
           ]
         }
-      ],
-      thread_id: 0,
-      parent_message_id: 0
+      ]
     }
 
     // Correct headers format for PAT token authentication
