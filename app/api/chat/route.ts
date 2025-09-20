@@ -99,6 +99,35 @@ export async function POST(request: NextRequest) {
       console.log('Error listing agents:', listError)
     }
 
+    // Step 1: Create a thread first
+    const threadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
+    
+    let threadId = "0" // fallback to "0" if thread creation fails
+    
+    try {
+      console.log('Creating thread...')
+      const threadResponse = await fetch(threadEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          origin_application: "ava_chatbot"
+        })
+      })
+      
+      if (threadResponse.ok) {
+        threadId = await threadResponse.text() // Response is just the thread ID as text
+        threadId = threadId.replace(/"/g, '') // Remove quotes if present
+        console.log('Created thread:', threadId)
+      } else {
+        console.log('Thread creation failed, using fallback "0"')
+      }
+    } catch (threadError) {
+      console.log('Thread creation error, using fallback "0":', threadError)
+    }
+
+    // Step 2: Update payload with the thread ID
+    payload.thread_id = threadId
+
     // Now try the main API call
     try {
       const response = await fetch(AGENT_ENDPOINT, {
