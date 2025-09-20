@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
       parent_message_id: 0
     }
 
-    // Correct headers format from official documentation
+    // Correct headers format for PAT token authentication
     const headers = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${PAT_TOKEN}`,
-      'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT'
+      'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
     }
 
     console.log('Making request to:', AGENT_ENDPOINT)
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${PAT_TOKEN}`,
-          'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT'
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
         }
       })
       
