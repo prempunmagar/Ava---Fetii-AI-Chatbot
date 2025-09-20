@@ -18,33 +18,32 @@ export async function POST(request: NextRequest) {
     // Correct Snowflake Cortex Agent API endpoint format from official docs
     const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Simplified request payload structure for Snowflake Cortex Agent
-    // Try both complex and simple message formats for compatibility
-    const complexPayload = {
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text", 
-              text: message
-            }
-          ]
-        }
-      ]
-    }
-
-    const simplePayload = {
+    // Correct request payload structure for Snowflake Cortex Agent (from official docs)
+    const payload = {
+      model: "claude-4-sonnet",
+      experimental: {
+        EnableRelatedQueries: true
+      },
       messages: [
         {
           role: "user",
           content: message
         }
-      ]
+      ],
+      tools: [
+        {
+          tool_spec: {
+            type: "cortex_analyst_text_to_sql",
+            name: "analyst1"
+          }
+        }
+      ],
+      tool_resources: {
+        analyst1: {
+          semantic_model_file: "@SNOWFLAKE_INTELLIGENCE.AGENTS.stage/semantic_model.yaml"
+        }
+      }
     }
-
-    // Try simple format first, then complex if needed
-    const payload = simplePayload
 
     // Correct headers format for PAT token authentication
     const headers = {
