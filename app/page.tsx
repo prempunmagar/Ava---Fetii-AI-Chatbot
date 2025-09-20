@@ -63,7 +63,7 @@ export default function ChatPage() {
       console.error('Error:', error)
       const errorMessage: Message = { 
         role: 'assistant', 
-        content: `❌ Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        content: `🔍 [DEBUG] API Error - Latest code deployed: ${error instanceof Error ? error.message : 'Unknown error'}` 
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
