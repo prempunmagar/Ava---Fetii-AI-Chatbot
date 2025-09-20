@@ -47,11 +47,37 @@ export async function POST(request: NextRequest) {
     console.log('Payload:', JSON.stringify(payload, null, 2))
     console.log('Headers:', headers)
 
-    // First, let's try to list available agents to debug
-    const listEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents`
+    // COMPREHENSIVE DEBUGGING - Test multiple endpoints and permissions
+    console.log('🔍 COMPREHENSIVE 401 DEBUGGING...')
+    console.log('Account:', SNOWFLAKE_ACCOUNT)
+    console.log('Database:', DATABASE) 
+    console.log('Schema:', SCHEMA)
+    console.log('Agent:', AGENT_NAME)
+    console.log('Token (first 10 chars):', PAT_TOKEN.substring(0, 10) + '...')
     
-    console.log('🔍 DEBUGGING: Checking available agents...')
-    console.log('List endpoint:', listEndpoint)
+    // Test 1: List databases (basic permissions)
+    const dbEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases`
+    console.log('TEST 1: Basic database access:', dbEndpoint)
+    
+    try {
+      const dbResponse = await fetch(dbEndpoint, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+        }
+      })
+      console.log('Database list status:', dbResponse.status)
+      const dbText = await dbResponse.text()
+      console.log('Database response:', dbText.substring(0, 200) + '...')
+    } catch (dbError) {
+      console.log('Database test error:', dbError)
+    }
+    
+    // Test 2: List agents 
+    const listEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents`
+    console.log('TEST 2: List agents:', listEndpoint)
     
     try {
       const listResponse = await fetch(listEndpoint, {
