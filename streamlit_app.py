@@ -2,8 +2,6 @@ import streamlit as st
 import requests
 import json
 import datetime
-import os
-from snowflake.snowpark import Session
 
 # Page configuration
 st.set_page_config(
@@ -12,98 +10,25 @@ st.set_page_config(
     layout="wide"
 )
 
-# Get Snowflake session
-@st.cache_resource
-def get_snowflake_session():
-    """Create Snowflake connection using environment variables or Streamlit secrets"""
-    try:
-        # HARDCODED CONNECTION FOR DEBUGGING - REMOVE IN PRODUCTION
-        connection_params = {
-            "account": "NBHIMLC-WB58290",  # Just the account identifier, not the full domain
-            "user": "MAGARPOON",
-            "password": "ASDFGhjkl;@123456",
-            "warehouse": "FETII_WAREHOUSE",
-            "database": "SNOWFLAKE_INTELLIGENCE",
-            "schema": "AGENTS",
-            "role": "ACCOUNTADMIN"
-        }
-        
-        # Override with secrets if available (for production)
-        if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
-            # Fix account format if it includes the full domain
-            account_from_secrets = st.secrets["snowflake"]["account"]
-            if account_from_secrets.endswith('.snowflakecomputing.com'):
-                # Extract just the account identifier
-                account_from_secrets = account_from_secrets.replace('.snowflakecomputing.com', '')
-                st.write(f"🔧 **Fixed account format:** {account_from_secrets}")
-            
-            connection_params = {
-                "account": account_from_secrets,
-                "user": st.secrets["snowflake"]["user"],
-                "password": st.secrets["snowflake"]["password"],
-                "warehouse": st.secrets["snowflake"]["warehouse"],
-                "database": st.secrets["snowflake"]["database"],
-                "schema": st.secrets["snowflake"]["schema"],
-                "role": st.secrets["snowflake"]["role"]
-            }
-        elif os.getenv("SNOWFLAKE_ACCOUNT"):
-            # Fallback to environment variables (for local development)
-            connection_params = {
-                "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-                "user": os.getenv("SNOWFLAKE_USER"),
-                "password": os.getenv("SNOWFLAKE_PASSWORD"),
-                "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", "COMPUTE_WH"),
-                "database": os.getenv("SNOWFLAKE_DATABASE"),
-                "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-                "role": os.getenv("SNOWFLAKE_ROLE")
-            }
-        
-        # Debug connection params before normalization
-        st.write(f"🔍 **Connection params before normalization:** {connection_params}")
-        
-        # Normalize account/host input: allow users to pass full host in "account"
-        account_value = connection_params.get("account")
-        if account_value:
-            value_lower = str(account_value).lower()
-            st.write(f"🔍 **Account value:** {account_value}, **Lower:** {value_lower}")
-            if "snowflakecomputing.com" in value_lower:
-                # Treat provided value as host and strip protocol if present
-                host_value = str(account_value).replace("https://", "").replace("http://", "")
-                connection_params["host"] = host_value
-                # Remove account to avoid conflicts; host takes precedence
-                connection_params.pop("account", None)
-                st.write(f"🔍 **Converted to host:** {host_value}")
-        
-        # Debug connection params after normalization
-        st.write(f"🔍 **Connection params after normalization:** {connection_params}")
+# Snowflake configuration - try Streamlit secrets first, then environment variables
+import os
+try:
+    # Try Streamlit secrets first (for Streamlit Cloud)
+    PAT_TOKEN = st.secrets["snowflake"]["PAT_TOKEN"]
+    SNOWFLAKE_ACCOUNT = st.secrets["snowflake"]["ACCOUNT"]
+    AGENT_NAME = st.secrets["snowflake"]["AGENT_NAME"]
+    DATABASE = st.secrets["snowflake"]["DATABASE"]
+    SCHEMA = st.secrets["snowflake"]["SCHEMA"]
+except:
+    # Fallback to environment variables (for local development)
+    PAT_TOKEN = os.getenv("SNOWFLAKE_PAT_TOKEN", "your-pat-token-here")
+    SNOWFLAKE_ACCOUNT = os.getenv("SNOWFLAKE_ACCOUNT", "NBHIMLC-WB58290")
+    AGENT_NAME = os.getenv("AGENT_NAME", "AVA")
+    DATABASE = os.getenv("DATABASE", "SNOWFLAKE_INTELLIGENCE")
+    SCHEMA = os.getenv("SCHEMA", "AGENTS")
 
-        # Validate required parameters (accept either account or host)
-        required_params = ["user", "password", "database", "schema"]
-        missing_params = [param for param in required_params if not connection_params.get(param)]
-        if not (connection_params.get("account") or connection_params.get("host")):
-            missing_params.append("account/host")
-        
-        if missing_params:
-            st.error(f"Missing Snowflake credentials: {', '.join(missing_params)}")
-            st.info("Please configure your Snowflake credentials in Streamlit secrets or environment variables.")
-            st.stop()
-        
-        # Create and return session
-        return Session.builder.configs(connection_params).create()
-        
-    except Exception as e:
-        st.error(f"Failed to connect to Snowflake: {str(e)}")
-        st.info("Please check your Snowflake credentials and try again.")
-        st.stop()
-def ensure_session():
-    """Lazily initialize the global Snowflake session to avoid blocking app startup."""
-    global session
-    if 'session' not in globals() or session is None:
-        with st.spinner("Connecting to Snowflake..."):
-            session = get_snowflake_session()
-
-# Lazy session (created on first use)
-session = None
+# Correct Snowflake Cortex Agent API endpoint
+AGENT_ENDPOINT = f"https://{SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/agents/{AGENT_NAME}/execute"
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -340,9 +265,6 @@ else:
 
     # Chat input (only show in chat mode)  
     if prompt := st.chat_input("Hi! Ask me anything about your ride-share data..."):
-        # Debug: Show that we received input
-        st.write(f"🔵 **Received input:** `{prompt}`")
-        
         # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         
@@ -354,276 +276,56 @@ else:
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             
-            # Basic debug - should always show
-            st.write("🟢 **Starting response generation...**")
-            st.write(f"**User prompt:** `{prompt}`")
-            
             try:
-                # Ensure Snowflake session exists before use
-                ensure_session()
-                
-                st.write("✅ **Session established successfully**")
-
-                # Determine base_url from either host or account
-                try:
-                    current_account = session.get_current_account().strip('"')
-                    base_url = f"https://{current_account}.snowflakecomputing.com"
-                except Exception:
-                    # If host was provided directly in secrets, prefer that
-                    if hasattr(st, 'secrets') and 'snowflake' in st.secrets and st.secrets['snowflake'].get('account', '').lower().endswith('snowflakecomputing.com'):
-                        host = st.secrets['snowflake']['account'].replace('https://', '').replace('http://', '')
-                        base_url = f"https://{host}"
-                    else:
-                        # Fallback to connection params env
-                        account_or_host = os.getenv('SNOWFLAKE_ACCOUNT', '')
-                        if account_or_host.endswith('snowflakecomputing.com'):
-                            base_url = f"https://{account_or_host}"
-                        else:
-                            base_url = f"https://{account_or_host}.snowflakecomputing.com" if account_or_host else ""
-                # base_url already determined above based on account/host
-                
-                # Get proper authentication token for Cortex Agent API
-                try:
-                    # Try to get OAuth token or use session-based auth
-                    # For Cortex Agent API, we might need to use session auth differently
-                    
-                    # Method 1: Try session token (current approach)
-                    session_token = session.get_session_token() if hasattr(session, 'get_session_token') else session.sql("SELECT CURRENT_SESSION()").collect()[0][0]
-                    
-                    # Method 2: Try using Snowflake session directly with requests.Session
-                    # This might handle auth automatically
-                    
-                    st.write(f"🔑 **Session Token:** `{session_token}`")
-                    
-                except Exception as token_error:
-                    st.write(f"⚠️ **Token error:** {str(token_error)}")
-                    session_token = "temp_token"
-                
-                # Try different authentication methods
-                auth_methods = [
-                    ("Bearer Token", {"Content-Type": "application/json", "Authorization": f"Bearer {session_token}"}),
-                    ("Snowflake Token", {"Content-Type": "application/json", "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT", "Authorization": f"Bearer {session_token}"}),
-                    ("Session Auth", {"Content-Type": "application/json", "Cookie": f"snowflake-session={session_token}"})
-                ]
-                
-                headers = auth_methods[0][1]  # Start with Bearer token
-                
-                # Request payload for Cortex Agent (correct format from documentation)
+                # Prepare request payload for Snowflake Cortex Agent
                 payload = {
-                    "thread_id": 0,
-                    "parent_message_id": 0,
-                    "messages": [
-                        {
-                            "role": "user", 
-                            "content": [{"type": "text", "text": prompt}]
-                        }
-                    ]
+                    "query": prompt,
+                    "agent_name": AGENT_NAME,
+                    "database": DATABASE,
+                    "schema": SCHEMA
                 }
-            
-                # Make API call to your Cortex agent
-                # HARDCODED SECRETS FOR DEBUGGING - REMOVE IN PRODUCTION
-                st.write("🔧 **Using hardcoded secrets for debugging**")
-                agent_database = "SNOWFLAKE_INTELLIGENCE"
-                agent_schema = "AGENTS"
-                agent_name = "AVA"  # Correct agent name confirmed by user
-                
-                # Override with secrets/env if available (for production)
-                if hasattr(st, 'secrets') and 'snowflake' in st.secrets:
-                    agent_database = st.secrets["snowflake"].get("database", agent_database)
-                    agent_schema = st.secrets["snowflake"].get("schema", agent_schema)  
-                    agent_name = st.secrets["snowflake"].get("agent_name", agent_name)
-                    st.write("📝 **Found Streamlit secrets - using those instead**")
-                elif os.getenv("SNOWFLAKE_DATABASE"):
-                    agent_database = os.getenv("SNOWFLAKE_DATABASE")
-                    agent_schema = os.getenv("SNOWFLAKE_SCHEMA")
-                    agent_name = os.getenv("SNOWFLAKE_AGENT_NAME", agent_name)
-                    st.write("📝 **Found environment variables - using those instead**")
-                
-                # Correct endpoint format from Snowflake documentation
-                agent_endpoint_correct = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}:run"
-                agent_endpoint_cortex = f"{base_url}/api/v2/cortex/agent:run"
-                agent_endpoint_legacy = f"{base_url}/api/v2/databases/{agent_database}/schemas/{agent_schema}/agents/{agent_name}/agent:run"
-                
-                # Use the correct format first
-                agent_endpoint = agent_endpoint_correct
-                
-                # Debug: Show what credentials we found
-                st.write(f"🔍 **Debug Info:**")
-                st.write(f"- Agent Database: `{agent_database}`")
-                st.write(f"- Agent Schema: `{agent_schema}`") 
-                st.write(f"- Agent Name: `{agent_name}`")
-                st.write(f"- Base URL: `{base_url}`")
-                st.write(f"- Full Endpoint: `{agent_endpoint}`")
-                
-                # Try to find the agent if we get 404
-                st.write("🔍 **Searching for available agents...**")
-                try:
-                    # Query to find agents in the database
-                    agents_query = f"SHOW AGENTS IN DATABASE {agent_database}"
-                    agents_result = session.sql(agents_query).collect()
-                    
-                    if agents_result:
-                        st.write("📋 **Found these agents in your database:**")
-                        for row in agents_result:
-                            st.write(f"- **{row['name']}** in schema `{row['schema_name']}`")
-                    else:
-                        st.write("❌ **No agents found in database**")
-                        
-                    # Also try to show schemas
-                    schemas_query = f"SHOW SCHEMAS IN DATABASE {agent_database}"
-                    schemas_result = session.sql(schemas_query).collect()
-                    st.write("📁 **Available schemas:**")
-                    for row in schemas_result[:10]:  # Limit to first 10
-                        st.write(f"- `{row['name']}`")
-                        
-                except Exception as search_error:
-                    st.write(f"⚠️ **Could not search for agents:** {str(search_error)}")
-                
-                # Check if agent is configured
-                if not agent_database or not agent_schema:
-                    # Demo mode - provide helpful response
-                    demo_response = f"""Hi there! 👋
 
-I'm your ride-share analytics assistant. I can see you asked about **{prompt}** - great question!
-
-To get me fully connected to your data, you'll need to configure your Snowflake agent credentials:
-
-**For Streamlit Cloud:**
-Add these to your app secrets:
-- `SNOWFLAKE_DATABASE`: Your database name
-- `SNOWFLAKE_SCHEMA`: Your schema name  
-- `SNOWFLAKE_AGENT_NAME`: Your agent name (default: FETII_CHAT)
-
-**For Local Development:**
-Set these environment variables in your `.env` file.
-
-Once configured, I'll be able to:
-📊 Analyze trip volumes and trends
-📍 Search for specific venues  
-👥 Show rider demographics
-📈 Provide utilization metrics
-
-*This is a demo response - configure your agent credentials to get real analytics!*"""
-                    
-                    message_placeholder.markdown(demo_response)
-                    full_response = demo_response
-                    
+                # Make request to agent endpoint
+                headers = {
+                    "Content-Type": "application/json", 
+                    "Authorization": f"Bearer {PAT_TOKEN}",
+                    "X-Snowflake-Authorization-Token-Type": "KEYPAIR_JWT"
+                }
+                
+                response = requests.post(
+                    AGENT_ENDPOINT,
+                    headers=headers,
+                    json=payload,
+                    timeout=60
+                )
+                
+                if response.status_code != 200:
+                    st.error(f"Request failed with status code: {response.status_code}")
+                    st.error(f"Response: {response.text}")
+                    full_response = "Sorry, I encountered an error processing your request."
                 else:
-                    # Try actual API call
-                    st.write("🚀 **Making API call to Cortex Agent...**")
-                    st.write(f"**Primary Endpoint (Correct Format):** `{agent_endpoint}`")
-                    st.write(f"**Alternative Endpoints:**")
-                    st.write(f"- Cortex Direct: `{agent_endpoint_cortex}`")
-                    st.write(f"- Legacy Format: `{agent_endpoint_legacy}`")
-                    st.write(f"**Headers:** `{headers}`")
-                    st.write(f"**Payload:** `{payload}`")
+                    response_data = response.json()
                     
-                    # Try multiple endpoints and auth methods until one works
-                    endpoints_to_try = [
-                        ("Correct Format", agent_endpoint_correct),
-                        ("Cortex Direct", agent_endpoint_cortex),
-                        ("Legacy Format", agent_endpoint_legacy)
-                    ]
-                    
-                    response = None
-                    success = False
-                    
-                    for endpoint_name, endpoint_url in endpoints_to_try:
-                        if success:
-                            break
-                            
-                        for auth_name, auth_headers in auth_methods:
-                            try:
-                                st.write(f"🔄 **Trying {endpoint_name} with {auth_name}:** `{endpoint_url}`")
-                                response = requests.post(
-                                    endpoint_url,
-                                    headers=auth_headers,
-                                    json=payload,
-                                    stream=True,
-                                    timeout=30
-                                )
-                                st.write(f"**Response Status:** `{response.status_code}`")
-                                
-                                if response.status_code == 200:
-                                    st.write(f"✅ **Success with {endpoint_name} + {auth_name}!**")
-                                    success = True
-                                    break
-                                else:
-                                    # Show error for non-200 responses
-                                    try:
-                                        error_body = response.text
-                                        st.write(f"❌ **{endpoint_name} + {auth_name} failed:** `{error_body}`")
-                                    except:
-                                        st.write(f"❌ **{endpoint_name} + {auth_name} failed:** Could not read response body")
-                                        
-                            except requests.exceptions.RequestException as req_error:
-                                st.write(f"❌ **{endpoint_name} + {auth_name} request failed:** `{str(req_error)}`")
-                                continue
-                    
-                    if not response or response.status_code != 200:
-                        st.write("❌ **All endpoints failed**")
-                        raise Exception("All agent endpoints returned errors")
-                    
-                    if response.status_code == 200:
-                        full_response = ""
-                        
-                        # Handle streaming response
-                        for line in response.iter_lines():
-                            if line:
-                                line_text = line.decode('utf-8')
-                                if line_text.startswith('data: '):
-                                    try:
-                                        data = json.loads(line_text[6:])  # Remove 'data: ' prefix
-                                        if 'text' in data:
-                                            full_response += data['text']
-                                            message_placeholder.markdown(full_response + "▌")
-                                    except json.JSONDecodeError:
-                                        continue
-                        
-                        # Final message without cursor
-                        message_placeholder.markdown(full_response)
-                        
+                    # Handle different response formats
+                    if 'result' in response_data:
+                        full_response = response_data['result']
+                    elif 'response' in response_data:
+                        full_response = response_data['response']
+                    elif 'message' in response_data:
+                        full_response = response_data['message']
                     else:
-                        # Fallback response if API fails
-                        fallback_response = f"""I'm having trouble connecting to the analytics engine right now. 
-
-However, I can help you with questions about:
-
-📊 **Trip Analytics**: Daily/weekly volumes, passenger counts, utilization rates
-📍 **Venue Intelligence**: Finding specific locations like Moody Center, campus areas
-👥 **Demographics**: Age groups, rider vs booker behavior
-📈 **Trends**: Peak hours, seasonal patterns, growth metrics
-
-Could you try asking your question again? I'll do my best to help!
-
-*Technical note: Response code {response.status_code}*"""
-                        
-                        message_placeholder.markdown(fallback_response)
-                        full_response = fallback_response
+                        full_response = str(response_data)
+                    
+                    # Simulate typing effect
+                    words = full_response.split()
+                    displayed_text = ""
+                    for word in words:
+                        displayed_text += word + " "
+                        message_placeholder.markdown(displayed_text + "▌")
+                    message_placeholder.markdown(full_response)
             
             except Exception as e:
-                # Error handling with more details
-                import traceback
-                error_details = traceback.format_exc()
-                
-                error_response = f"""❌ **Error occurred while processing your request**
-
-**Error type:** `{type(e).__name__}`
-**Error message:** `{str(e)}`
-
-**Full traceback:**
-```
-{error_details}
-```
-
-I'm designed to help with ride-share analytics including:
-- Trip volumes and trends
-- Venue searches and location insights  
-- Rider demographics and behavior patterns
-- Data quality and utilization metrics
-
-Please check your configuration and try again."""
-                
+                error_response = f"❌ Sorry, I encountered an error: {str(e)}"
                 message_placeholder.markdown(error_response)
                 full_response = error_response
             
