@@ -6,6 +6,7 @@ import { Send, Search, MessageCircle } from 'lucide-react'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  thinking?: string
 }
 
 export default function ChatPage() {
@@ -52,7 +53,8 @@ export default function ChatPage() {
 
       const assistantMessage: Message = { 
         role: 'assistant', 
-        content: data.response || 'Sorry, I received an empty response.' 
+        content: data.response || 'Sorry, I received an empty response.',
+        thinking: data.thinking || undefined
       }
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
@@ -130,13 +132,21 @@ export default function ChatPage() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-3xl p-4 rounded-lg ${
+                    className={`max-w-3xl rounded-lg ${
                       message.role === 'user'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-blue-600 text-white p-4'
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                    {message.role === 'assistant' && message.thinking && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-t-lg p-3 mb-1">
+                        <div className="text-xs text-gray-500 mb-2 font-medium">💭 Thinking</div>
+                        <div className="whitespace-pre-wrap text-xs text-gray-600">{message.thinking}</div>
+                      </div>
+                    )}
+                    <div className={`whitespace-pre-wrap text-sm ${message.role === 'assistant' ? 'p-4' : ''}`}>
+                      {message.content}
+                    </div>
                   </div>
                 </div>
               ))}

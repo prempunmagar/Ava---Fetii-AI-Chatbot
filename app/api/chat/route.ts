@@ -1,5 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Function to separate thinking from final response
+function parseThinkingAndResponse(text: string): { thinking: string | null, response: string } {
+  // Common patterns for thinking sections
+  const patterns = [
+    // ChatGPT-style thinking tags
+    /<thinking>(.*?)<\/thinking>/s,
+    // Alternative thinking patterns
+    /(?:^|\n)(?:Thinking|Analysis|Reasoning):\s*(.*?)(?:\n(?:Response|Answer|Result):|$)/s,
+    // Numbered thinking patterns
+    /(?:^|\n)1\.\s*(?:Thinking|Analysis):(.*?)(?:\n(?:\d+\.|Response:|Answer:)|$)/s,
+    // Bracket patterns
+    /\[thinking\](.*?)\[\/thinking\]/s,
+    // Double newline separation (common in AI responses)
+    /(.*?)\n\n(.*)/s
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) {
+      const thinking = match[1]?.trim()
+      const remaining = text.replace(match[0], '').trim()
+      
+      if (thinking && thinking.length > 20) { // Only consider substantial thinking
+        return {
+          thinking: thinking,
+          response: remaining || text.split('\n\n').pop()?.trim() || text
+        }
+      }
+    }
+  }
+
+  // If no clear thinking pattern, look for sections that seem like reasoning
+  const lines = text.split('\n')
+  let thinkingLines: string[] = []
+  let responseLines: string[] = []
+  let foundResponseStart = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    
+    // Check if this line starts the final response
+    if (line.match(/^(?:Based on|Therefore|In conclusion|Final answer|Response|Answer):/i) ||
+        (i > 0 && line.length > 0 && !line.match(/^(?:Let me|I need to|First|Next|However|Additionally)/i))) {
+      foundResponseStart = true
+    }
+    
+    if (foundResponseStart) {
+      responseLines.push(lines[i])
+    } else if (line.length > 0) {
+      thinkingLines.push(lines[i])
+    }
+  }
+
+  // If we found a reasonable split
+  if (thinkingLines.length > 2 && responseLines.length > 0) {
+    return {
+      thinking: thinkingLines.join('\n').trim(),
+      response: responseLines.join('\n').trim()
+    }
+  }
+
+  // Fallback: no thinking detected
+  return {
+    thinking: null,
+    response: text
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message } = await request.json()
@@ -524,7 +592,12 @@ export async function POST(request: NextRequest) {
         fullResponse = text // Fallback to raw text if no structured content found
       }
       
-      return NextResponse.json({ response: fullResponse })
+      // Parse thinking vs response
+      const parsed = parseThinkingAndResponse(fullResponse)
+      return NextResponse.json({ 
+        thinking: parsed.thinking,
+        response: parsed.response 
+      })
       
     } else {
       // Handle JSON response
@@ -545,7 +618,12 @@ export async function POST(request: NextRequest) {
         responseText = JSON.stringify(data, null, 2)
       }
       
-      return NextResponse.json({ response: responseText })
+      // Parse thinking vs response
+      const parsed = parseThinkingAndResponse(responseText)
+      return NextResponse.json({ 
+        thinking: parsed.thinking,
+        response: parsed.response 
+      })
     }
 
     } catch (fetchError) {
