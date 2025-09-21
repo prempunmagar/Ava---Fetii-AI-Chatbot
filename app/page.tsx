@@ -250,7 +250,7 @@ export default function ChatPage() {
                               </div>
                             )}
                             {message.thinking && !message.isStreaming && (
-                              <span className="text-gray-400">({message.thinking.split('\n').length} lines)</span>
+                              <span className="text-gray-400">({message.thinking.split('\n').filter(line => line.trim()).length} lines)</span>
                             )}
                           </div>
                           {(!collapsedThinking[index] || message.isStreaming) ? (
@@ -259,7 +259,7 @@ export default function ChatPage() {
                             <ChevronDown className="w-4 h-4 text-gray-400" />
                           )}
                         </button>
-                        {(!collapsedThinking[index] || message.isStreaming) && (
+                        {(!collapsedThinking[index] || message.isStreaming || (!collapsedThinking.hasOwnProperty(index))) && (
                           <div className="px-3 pb-3 border-t border-gray-200">
                             <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">
                               {message.thinking || (message.isStreaming ? 'Starting analysis...' : '')}

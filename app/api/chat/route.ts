@@ -618,11 +618,13 @@ export async function POST(request: NextRequest) {
             'Processing your request with specialized tools...'
           ]
 
+          let progressiveThinking = ''
           for (let i = 0; i < thinkingSteps.length; i++) {
             await new Promise(resolve => setTimeout(resolve, 500))
+            progressiveThinking += (i > 0 ? '\n\n' : '') + thinkingSteps[i]
             sendChunk({
               type: 'thinking', 
-              content: thinkingSteps[i],
+              content: progressiveThinking,
               done: false
             })
           }
@@ -691,16 +693,20 @@ export async function POST(request: NextRequest) {
           // Parse the final response
           const parsed = parseThinkingAndResponse(fullResponse)
           
-          // Send the actual thinking if found
+          // Combine our progressive thinking with the actual agent thinking
+          let finalThinking = progressiveThinking
+          
           if (parsed.thinking) {
-            sendChunk({
-              type: 'thinking',
-              content: parsed.thinking,
-              done: false
-            })
-            
-            await new Promise(resolve => setTimeout(resolve, 300))
+            finalThinking += '\n\n=== Agent Analysis ===\n' + parsed.thinking
           }
+          
+          sendChunk({
+            type: 'thinking',
+            content: finalThinking,
+            done: false
+          })
+          
+          await new Promise(resolve => setTimeout(resolve, 300))
 
           // Stream the response word by word
           const responseWords = parsed.response.split(' ')
