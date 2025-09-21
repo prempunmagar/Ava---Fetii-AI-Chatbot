@@ -93,13 +93,10 @@ export async function POST(request: NextRequest) {
     console.log('Agent:', AGENT_NAME)
     console.log('Token (first 10 chars):', PAT_TOKEN.substring(0, 10) + '...')
     console.log('Payload validation:')
-    console.log('- thread_id type:', typeof payload.thread_id, 'value:', payload.thread_id)
-    console.log('- parent_message_id type:', typeof payload.parent_message_id, 'value:', payload.parent_message_id)
     console.log('- messages structure:', JSON.stringify(payload.messages, null, 2))
     console.log('- Payload keys:', Object.keys(payload))
-    console.log('- Thread ID used:', CURRENT_THREAD_ID)
     console.log('- Final payload:', JSON.stringify(payload, null, 2))
-    console.log('- Tool choice configured:', payload.tool_choice ? 'YES' : 'NO')
+    console.log('- Using specific agent endpoint (no thread management needed)')
     
     // Test 1: Test thread creation permissions
     const testThreadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
