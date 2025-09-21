@@ -15,8 +15,11 @@ export async function POST(request: NextRequest) {
     const DATABASE = 'SNOWFLAKE_INTELLIGENCE'
     const SCHEMA = 'AGENTS'
 
-    // Back to original :run endpoint since docs don't specify exact format
-    const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
+    // Original :run endpoint (will be replaced by dynamic endpoint testing)
+    const ORIGINAL_AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
+
+    // Will be set by endpoint testing logic
+    let WORKING_ENDPOINT = ''
 
     // Complete payload format with all required fields based on Snowflake docs
     const payload = {
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
       'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
     }
 
-    console.log('Making request to:', AGENT_ENDPOINT)
+        console.log('Making request to:', WORKING_ENDPOINT)
     console.log('Payload:', JSON.stringify(payload, null, 2))
     console.log('Headers:', headers)
     console.log('Request method: POST')
@@ -91,6 +94,7 @@ export async function POST(request: NextRequest) {
         }
       })
       console.log('Database list status:', dbResponse.status)
+      console.log('Database response headers:', Array.from(dbResponse.headers.entries()).reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {}))
       const dbText = await dbResponse.text()
       console.log('Database response:', dbText.substring(0, 200) + '...')
     } catch (dbError) {
@@ -200,7 +204,7 @@ export async function POST(request: NextRequest) {
       throw new Error('All endpoints failed')
     }
 
-    const AGENT_ENDPOINT = finalEndpoint // Update for debugging
+    WORKING_ENDPOINT = finalEndpoint // Update for debugging
 
     // If we got a 400 error, try a minimal payload as fallback
     if (response.status === 400) {
@@ -223,7 +227,7 @@ export async function POST(request: NextRequest) {
 
       try {
         console.log('Minimal payload:', JSON.stringify(minimalPayload, null, 2))
-        response = await fetch(AGENT_ENDPOINT, {
+        response = await fetch(WORKING_ENDPOINT, {
           method: 'POST',
           headers,
           body: JSON.stringify(minimalPayload)
@@ -238,7 +242,7 @@ export async function POST(request: NextRequest) {
     try {
 
       console.log('Main API Response status:', response.status)
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+      console.log('Response headers:', Array.from(response.headers.entries()).reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {}))
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -248,10 +252,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ 
           error: `Debug Info - Status: ${response.status}, Error: ${errorText}`,
           debug: {
-            endpoint: AGENT_ENDPOINT,
+            endpoint: WORKING_ENDPOINT,
             status: response.status,
             errorText: errorText,
-            headers: Object.fromEntries(response.headers.entries()),
+            headers: Array.from(response.headers.entries()).reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {}),
             account: SNOWFLAKE_ACCOUNT,
             database: DATABASE,
             schema: SCHEMA,
