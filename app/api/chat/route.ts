@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Payload format optimized for AVA agent (based on DESCRIBE output)
+    // Payload format optimized for AVA agent (using created thread ID)
     const payload = {
-      thread_id: 0,
+      thread_id: parseInt(CURRENT_THREAD_ID) || 0,
       parent_message_id: 0,
       messages: [
         {
@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
     console.log('- Payload keys:', Object.keys(payload))
     console.log('- Thread ID used:', CURRENT_THREAD_ID)
     console.log('- Final payload:', JSON.stringify(payload, null, 2))
+    console.log('- Tool choice configured:', payload.tool_choice ? 'YES' : 'NO')
     
     // Test 1: Test thread creation permissions
     const testThreadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
@@ -237,9 +238,9 @@ export async function POST(request: NextRequest) {
     // Test different payload formats for the specific AVA agent endpoint
     const payloadTests = [
       {
-        name: 'AVA Agent Format with Tools',
+        name: 'AVA Agent Format with Thread',
         payload: {
-          thread_id: 0,
+          thread_id: parseInt(CURRENT_THREAD_ID) || 0,
           parent_message_id: 0,
           messages: [
             {
@@ -259,9 +260,9 @@ export async function POST(request: NextRequest) {
         }
       },
       {
-        name: 'Standard Format',
+        name: 'Standard Format with Thread',
         payload: {
-          thread_id: 0,
+          thread_id: parseInt(CURRENT_THREAD_ID) || 0,
           parent_message_id: 0,
           messages: [
             {
@@ -277,17 +278,14 @@ export async function POST(request: NextRequest) {
         }
       },
       {
-        name: 'Simplified Format',
+        name: 'Minimal Format with Thread',
         payload: {
+          thread_id: parseInt(CURRENT_THREAD_ID) || 0,
+          parent_message_id: 0,
           messages: [
             {
               role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: message
-                }
-              ]
+              content: message
             }
           ]
         }
