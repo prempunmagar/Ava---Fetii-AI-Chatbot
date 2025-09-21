@@ -565,155 +565,152 @@ export async function POST(request: NextRequest) {
     const contentType = response.headers.get('content-type')
     console.log('Content-Type:', contentType)
 
-    // Handle different response types
-    if (contentType?.includes('text/plain') || contentType?.includes('text/event-stream')) {
-      // Handle streaming response
-      const text = await response.text()
-      console.log('Streaming response:', text)
-      
-      let fullResponse = ''
-      const lines = text.split('\n')
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const dataContent = line.slice(6) // Remove 'data: ' prefix
-            
-            if (dataContent.trim() === '[DONE]' || !dataContent.trim()) {
-              continue
-            }
-            
-            const data = JSON.parse(dataContent)
-            
-            // Extract content from different possible response structures
-            if (data.choices && data.choices.length > 0) {
-              const choice = data.choices[0]
-              if (choice.delta && choice.delta.content) {
-                fullResponse += choice.delta.content
-              } else if (choice.message && choice.message.content) {
-                fullResponse += choice.message.content
-              }
-            } else if (data.content) {
-              fullResponse += data.content
-            } else if (data.text) {
-              fullResponse += data.text
-            }
-          } catch (parseError) {
-            console.warn('Failed to parse SSE line:', line, parseError)
-            continue
-          }
+    // Create a streaming response that starts immediately
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendChunk = (data: any) => {
+          controller.enqueue(`data: ${JSON.stringify(data)}\n\n`)
         }
-      }
-      
-      if (!fullResponse) {
-        fullResponse = text // Fallback to raw text if no structured content found
-      }
-      
-      // Parse thinking vs response and create streaming simulation
-      const parsed = parseThinkingAndResponse(fullResponse)
-      
-      // Create a streaming response that simulates real-time thinking
-      const stream = new ReadableStream({
-        start(controller) {
-          const sendChunk = (data: any) => {
-            controller.enqueue(`data: ${JSON.stringify(data)}\n\n`)
+
+        try {
+          // Send initial thinking indicator
+          sendChunk({
+            type: 'thinking',
+            content: 'Analyzing your request...',
+            done: false
+          })
+
+          // Simulate progressive thinking while waiting for Snowflake response
+          const thinkingSteps = [
+            'Analyzing your request...',
+            'Identifying the best approach for your query...',
+            'Connecting to data sources...',
+            'Processing your request with Cortex Agent...'
+          ]
+
+          for (let i = 0; i < thinkingSteps.length; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+            sendChunk({
+              type: 'thinking', 
+              content: thinkingSteps[i],
+              done: false
+            })
           }
 
-          // Simulate streaming thinking process
-          if (parsed.thinking) {
-            const thinkingWords = parsed.thinking.split(' ')
-            let currentThinking = ''
+          // Now get the actual response from Snowflake
+          let fullResponse = ''
+          
+          // Handle different response types
+          if (contentType?.includes('text/plain') || contentType?.includes('text/event-stream')) {
+            const text = await response.text()
+            console.log('Streaming response:', text)
             
-            thinkingWords.forEach((word, index) => {
-              setTimeout(() => {
-                currentThinking += (index > 0 ? ' ' : '') + word
-                sendChunk({
-                  type: 'thinking',
-                  content: currentThinking,
-                  done: false
-                })
-              }, index * 50) // 50ms delay between words
-            })
-
-            // After thinking is done, start the response
-            setTimeout(() => {
-              const responseWords = parsed.response.split(' ')
-              let currentResponse = ''
-              
-              responseWords.forEach((word, index) => {
-                setTimeout(() => {
-                  currentResponse += (index > 0 ? ' ' : '') + word
-                  sendChunk({
-                    type: 'response',
-                    content: currentResponse,
-                    thinking: parsed.thinking,
-                    done: index === responseWords.length - 1
-                  })
+            const lines = text.split('\n')
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const dataContent = line.slice(6)
                   
-                  if (index === responseWords.length - 1) {
-                    controller.close()
+                  if (dataContent.trim() === '[DONE]' || !dataContent.trim()) {
+                    continue
                   }
-                }, index * 30) // 30ms delay between response words
-              })
-            }, thinkingWords.length * 50 + 200) // Wait for thinking to finish + small delay
-          } else {
-            // No thinking, just stream the response
-            const responseWords = parsed.response.split(' ')
-            let currentResponse = ''
-            
-            responseWords.forEach((word, index) => {
-              setTimeout(() => {
-                currentResponse += (index > 0 ? ' ' : '') + word
-                sendChunk({
-                  type: 'response',
-                  content: currentResponse,
-                  thinking: null,
-                  done: index === responseWords.length - 1
-                })
-                
-                if (index === responseWords.length - 1) {
-                  controller.close()
+                  
+                  const data = JSON.parse(dataContent)
+                  
+                  if (data.choices && data.choices.length > 0) {
+                    const choice = data.choices[0]
+                    if (choice.delta && choice.delta.content) {
+                      fullResponse += choice.delta.content
+                    } else if (choice.message && choice.message.content) {
+                      fullResponse += choice.message.content
+                    }
+                  } else if (data.content) {
+                    fullResponse += data.content
+                  } else if (data.text) {
+                    fullResponse += data.text
+                  }
+                } catch (parseError) {
+                  console.warn('Failed to parse SSE line:', line, parseError)
+                  continue
                 }
-              }, index * 30)
-            })
+              }
+            }
+            
+            if (!fullResponse) {
+              fullResponse = text
+            }
+          } else {
+            // Handle JSON response
+            const data = await response.json()
+            console.log('JSON response:', data)
+            
+            if (data.choices && data.choices.length > 0) {
+              fullResponse = data.choices[0]?.message?.content || 'No content in response'
+            } else if (data.content) {
+              fullResponse = data.content
+            } else if (data.text) {
+              fullResponse = data.text
+            } else if (data.response) {
+              fullResponse = data.response
+            } else {
+              fullResponse = JSON.stringify(data, null, 2)
+            }
           }
-        }
-      })
 
-      return new Response(stream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-        },
-      })
-      
-    } else {
-      // Handle JSON response
-      const data = await response.json()
-      console.log('JSON response:', data)
-      
-      let responseText = ''
-      
-      if (data.choices && data.choices.length > 0) {
-        responseText = data.choices[0]?.message?.content || 'No content in response'
-      } else if (data.content) {
-        responseText = data.content
-      } else if (data.text) {
-        responseText = data.text
-      } else if (data.response) {
-        responseText = data.response
-      } else {
-        responseText = JSON.stringify(data, null, 2)
+          // Parse the final response
+          const parsed = parseThinkingAndResponse(fullResponse)
+          
+          // Send the actual thinking if found
+          if (parsed.thinking) {
+            sendChunk({
+              type: 'thinking',
+              content: parsed.thinking,
+              done: false
+            })
+            
+            await new Promise(resolve => setTimeout(resolve, 300))
+          }
+
+          // Stream the response word by word
+          const responseWords = parsed.response.split(' ')
+          let currentResponse = ''
+          
+          for (let i = 0; i < responseWords.length; i++) {
+            currentResponse += (i > 0 ? ' ' : '') + responseWords[i]
+            
+            sendChunk({
+              type: 'response',
+              content: currentResponse,
+              thinking: parsed.thinking,
+              done: i === responseWords.length - 1
+            })
+            
+            if (i < responseWords.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 50))
+            }
+          }
+
+        } catch (error) {
+          console.error('Streaming error:', error)
+          sendChunk({
+            type: 'error',
+            content: 'Error processing request',
+            done: true
+          })
+        } finally {
+          controller.close()
+        }
       }
-      
-      // Parse thinking vs response
-      const parsed = parseThinkingAndResponse(responseText)
-      return NextResponse.json({ 
-        thinking: parsed.thinking,
-        response: parsed.response 
-      })
-    }
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
 
     } catch (fetchError) {
       console.error('Fetch error:', fetchError)

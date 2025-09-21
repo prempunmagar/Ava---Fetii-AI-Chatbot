@@ -259,7 +259,7 @@ export default function ChatPage() {
                         {(expandedThinking[index] || message.isStreaming) && (
                           <div className="px-3 pb-3 border-t border-gray-200">
                             <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">
-                              {message.thinking}
+                              {message.thinking || (message.isStreaming ? 'Starting analysis...' : '')}
                               {message.isStreaming && (
                                 <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
                               )}
@@ -275,16 +275,7 @@ export default function ChatPage() {
                 </div>
               ))}
               
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="max-w-3xl p-4 bg-gray-100 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                      <span className="text-sm text-gray-600">Ava is thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+{/* Removed loading indicator - thinking is shown in the message box */}
               <div ref={messagesEndRef} />
             </div>
           )}
