@@ -56,14 +56,19 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Minimal payload for generic cortex endpoint
+    // Correct payload format based on Snowflake documentation
     const payload = {
       thread_id: parseInt(CURRENT_THREAD_ID) || 0,
       parent_message_id: 0,
       messages: [
         {
           role: "user",
-          content: message // Simple string instead of complex content array
+          content: [
+            {
+              type: "text",
+              text: message
+            }
+          ]
         }
       ]
     }
@@ -231,26 +236,42 @@ export async function POST(request: NextRequest) {
       ]
     }
 
-    console.log('TEST 7: Testing minimal payload with generic endpoint')
+    console.log('TEST 7: Testing correct payload with generic endpoint')
     try {
+      const correctTestPayload = {
+        thread_id: parseInt(CURRENT_THREAD_ID) || 0,
+        parent_message_id: 0,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "test message"
+              }
+            ]
+          }
+        ]
+      }
+
       const testResponse = await fetch(minimalTestEndpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify(minimalTestPayload)
+        body: JSON.stringify(correctTestPayload)
       })
 
-      console.log('Minimal test response status:', testResponse.status)
+      console.log('Correct payload test response status:', testResponse.status)
       const testText = await testResponse.text()
-      console.log('Minimal test response:', testText.substring(0, 500) + '...')
+      console.log('Correct payload test response:', testText.substring(0, 500) + '...')
 
       if (testResponse.ok) {
-        console.log('✅ Minimal payload works! Using generic endpoint.')
+        console.log('✅ Correct payload format works! Using generic endpoint.')
         WORKING_ENDPOINT = minimalTestEndpoint
       } else {
-        console.log('❌ Minimal payload failed, trying specific agent endpoint')
+        console.log('❌ Correct payload failed, trying specific agent endpoint')
       }
     } catch (testError) {
-      console.log('Error testing minimal payload:', testError)
+      console.log('Error testing correct payload:', testError)
     }
 
     // Test 8: Get specific agent details if needed
@@ -326,30 +347,57 @@ export async function POST(request: NextRequest) {
       WORKING_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
     }
 
-    // If we got a 400 error, try a minimal payload as fallback
+    // If we got a 400 error, try different payload formats as fallback
     if (response.status === 400) {
-      console.log('🔄 Trying minimal payload fallback...')
-      const minimalPayload = {
-        thread_id: 0,
-        parent_message_id: 0,
+      console.log('🔄 Trying different payload formats as fallback...')
+
+      // Try 1: Legacy schema format
+      const legacyPayload = {
+        model: "claude-4-sonnet",
         messages: [
-          {
-            role: "user",
-            content: message // Simple string format
-          }
+          { role: "user", content: message }
         ]
       }
 
       try {
-        console.log('Minimal payload:', JSON.stringify(minimalPayload, null, 2))
+        console.log('Trying legacy schema payload:', JSON.stringify(legacyPayload, null, 2))
         response = await fetch(WORKING_ENDPOINT, {
           method: 'POST',
           headers,
-          body: JSON.stringify(minimalPayload)
+          body: JSON.stringify(legacyPayload)
         })
-        console.log('Minimal payload response status:', response.status)
-      } catch (minimalError) {
-        console.log('Minimal payload also failed:', minimalError)
+        console.log('Legacy payload response status:', response.status)
+
+        if (response.ok) {
+          console.log('✅ Legacy schema worked!')
+        } else {
+          console.log('❌ Legacy schema failed, trying simplified format...')
+
+          // Try 2: Simplified format without thread management
+          const simplePayload = {
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: message
+                  }
+                ]
+              }
+            ]
+          }
+
+          console.log('Trying simplified payload:', JSON.stringify(simplePayload, null, 2))
+          response = await fetch(WORKING_ENDPOINT, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(simplePayload)
+          })
+          console.log('Simplified payload response status:', response.status)
+        }
+      } catch (formatError) {
+        console.log('All payload formats failed:', formatError)
       }
     }
 
