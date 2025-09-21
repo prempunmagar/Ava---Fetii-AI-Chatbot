@@ -721,13 +721,13 @@ export async function POST(request: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, 300))
 
           // Stream the response in chunks for better performance
-          const response = parsed.response
+          const responseText = parsed.response
           const chunkSize = 50 // Characters per chunk
           let currentResponse = ''
           
-          for (let i = 0; i < response.length; i += chunkSize) {
-            currentResponse = response.substring(0, i + chunkSize)
-            const isLastChunk = i + chunkSize >= response.length
+          for (let i = 0; i < responseText.length; i += chunkSize) {
+            currentResponse = responseText.substring(0, i + chunkSize)
+            const isLastChunk = i + chunkSize >= responseText.length
             
             sendChunk({
               type: 'response',
