@@ -15,7 +15,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'analytics' | 'research'>('analytics')
-  const [expandedThinking, setExpandedThinking] = useState<Record<number, boolean>>({})
+  const [collapsedThinking, setCollapsedThinking] = useState<Record<number, boolean>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -49,7 +49,10 @@ export default function ChatPage() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend })
+        body: JSON.stringify({ 
+          message: messageToSend,
+          conversationHistory: messages.slice(-6) // Send last 6 messages for context (3 exchanges)
+        })
       })
 
       if (!response.ok) {
@@ -231,7 +234,7 @@ export default function ChatPage() {
                     {message.role === 'assistant' && (message.thinking || message.isStreaming) && (
                       <div className="bg-gray-50 border border-gray-200 rounded-t-lg">
                         <button
-                          onClick={() => setExpandedThinking(prev => ({
+                          onClick={() => setCollapsedThinking(prev => ({
                             ...prev,
                             [index]: !prev[index]
                           }))}
@@ -250,13 +253,13 @@ export default function ChatPage() {
                               <span className="text-gray-400">({message.thinking.split('\n').length} lines)</span>
                             )}
                           </div>
-                          {(expandedThinking[index] || message.isStreaming) ? (
+                          {(!collapsedThinking[index] || message.isStreaming) ? (
                             <ChevronUp className="w-4 h-4 text-gray-400" />
                           ) : (
                             <ChevronDown className="w-4 h-4 text-gray-400" />
                           )}
                         </button>
-                        {(expandedThinking[index] || message.isStreaming) && (
+                        {(!collapsedThinking[index] || message.isStreaming) && (
                           <div className="px-3 pb-3 border-t border-gray-200">
                             <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">
                               {message.thinking || (message.isStreaming ? 'Starting analysis...' : '')}

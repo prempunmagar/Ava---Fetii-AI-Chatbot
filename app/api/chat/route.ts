@@ -87,7 +87,7 @@ function parseThinkingAndResponse(text: string): { thinking: string | null, resp
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json()
+    const { message, conversationHistory } = await request.json()
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -141,20 +141,48 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Try without thread management first (many agents work without it)
-    const payload = {
-      messages: [
+    // Build conversation history for context
+    const messages = []
+    
+    // Add conversation history if provided
+    if (conversationHistory && conversationHistory.length > 0) {
+      for (const historyMessage of conversationHistory) {
+        if (historyMessage.role === 'user') {
+          messages.push({
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: historyMessage.content
+              }
+            ]
+          })
+        } else if (historyMessage.role === 'assistant' && historyMessage.content) {
+          messages.push({
+            role: "assistant",
+            content: [
+              {
+                type: "text",
+                text: historyMessage.content
+              }
+            ]
+          })
+        }
+      }
+    }
+    
+    // Add the current message
+    messages.push({
+      role: "user",
+      content: [
         {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: message
-            }
-          ]
+          type: "text",
+          text: message
         }
       ]
-    }
+    })
+
+    const payload = { messages }
 
     // Correct headers format for PAT token authentication
     const headers = {
@@ -583,9 +611,11 @@ export async function POST(request: NextRequest) {
           // Simulate progressive thinking while waiting for Snowflake response
           const thinkingSteps = [
             'Analyzing your request...',
-            'Identifying the best approach for your query...',
-            'Connecting to data sources...',
-            'Processing your request with Cortex Agent...'
+            'Determining if this requires analytics, search, or general knowledge...',
+            'Checking conversation context for related queries...',
+            'Initializing Cortex Agent tools (Analyst, Search, Functions)...',
+            'Connecting to Snowflake data warehouse...',
+            'Processing your request with specialized tools...'
           ]
 
           for (let i = 0; i < thinkingSteps.length; i++) {
