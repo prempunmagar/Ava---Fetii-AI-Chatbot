@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Correct payload format based on Snowflake documentation
+    // Payload format optimized for AVA agent endpoint
     const payload = {
-      thread_id: parseInt(CURRENT_THREAD_ID) || 0,
+      thread_id: 0,
       parent_message_id: 0,
       messages: [
         {
@@ -223,56 +223,91 @@ export async function POST(request: NextRequest) {
       console.log('Error listing agents:', listError)
     }
 
-    // Test 3: Test minimal payload with generic endpoint first
-    const minimalTestEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
-    const minimalTestPayload = {
-      thread_id: 0,
-      parent_message_id: 0,
-      messages: [
-        {
-          role: "user",
-          content: "test message"
+    // Test 3: Test AVA agent with correct endpoint and permissions
+    console.log('TEST 3: Testing AVA agent with proper permissions...')
+
+    // Test the specific AVA agent endpoint first (most likely to work now)
+    const avaAgentEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
+
+    // Test different payload formats for the specific agent endpoint
+    const payloadTests = [
+      {
+        name: 'Standard Format',
+        payload: {
+          thread_id: 0,
+          parent_message_id: 0,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: message
+                }
+              ]
+            }
+          ]
         }
-      ]
-    }
+      },
+      {
+        name: 'Simplified Format',
+        payload: {
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: message
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
 
-    console.log('TEST 7: Testing correct payload with generic endpoint')
-    try {
-      const correctTestPayload = {
-        thread_id: parseInt(CURRENT_THREAD_ID) || 0,
-        parent_message_id: 0,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "test message"
-              }
-            ]
+    // Test the payload formats with the AVA agent endpoint
+    for (const test of payloadTests) {
+      try {
+        console.log(`\n🔄 Testing ${test.name} payload format:`)
+        console.log('Payload:', JSON.stringify(test.payload, null, 2))
+
+        const testResponse = await fetch(avaAgentEndpoint, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${PAT_TOKEN}`,
+            'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+          },
+          body: JSON.stringify(test.payload)
+        })
+
+        console.log(`${test.name} response status:`, testResponse.status)
+
+        if (testResponse.ok) {
+          console.log(`✅ ${test.name} WORKED! Using AVA agent endpoint.`)
+          WORKING_ENDPOINT = avaAgentEndpoint
+          const responseText = await testResponse.text()
+          console.log('Response preview:', responseText.substring(0, 200) + '...')
+          break
+        } else {
+          const errorText = await testResponse.text()
+          console.log(`❌ ${test.name} failed:`, errorText.substring(0, 200) + '...')
+
+          if (testResponse.status === 404) {
+            console.log('❌ AVA agent not found - check agent name and database/schema')
+            break
           }
-        ]
+        }
+      } catch (testError) {
+        console.log(`Error testing ${test.name}:`, testError)
       }
-
-      const testResponse = await fetch(minimalTestEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(correctTestPayload)
-      })
-
-      console.log('Correct payload test response status:', testResponse.status)
-      const testText = await testResponse.text()
-      console.log('Correct payload test response:', testText.substring(0, 500) + '...')
-
-      if (testResponse.ok) {
-        console.log('✅ Correct payload format works! Using generic endpoint.')
-        WORKING_ENDPOINT = minimalTestEndpoint
-      } else {
-        console.log('❌ Correct payload failed, trying specific agent endpoint')
-      }
-    } catch (testError) {
-      console.log('Error testing correct payload:', testError)
     }
+
+    // Test 4: Test generic cortex endpoint as fallback if AVA agent fails
+    console.log('\nTEST 4: Testing generic cortex endpoint as fallback...')
 
     // Test 8: Get specific agent details if needed
     const agentDetailsEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}`
@@ -299,12 +334,12 @@ export async function POST(request: NextRequest) {
     // Remove thread creation - not needed for :run endpoint
     // Thread management is handled by thread_id and parent_message_id in payload
 
-    // Test multiple endpoint variations - start with generic endpoint since it worked before
+    // Test multiple endpoint variations - start with AVA agent endpoint since permissions are set up
     const endpoints = [
-      // Generic cortex endpoint (worked before)
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`,
-      // Specific agent endpoint
+      // Specific AVA agent endpoint (should work now with permissions)
       `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
+      // Generic cortex endpoint as fallback
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`,
       // Alternative endpoint format
       `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`
     ]
