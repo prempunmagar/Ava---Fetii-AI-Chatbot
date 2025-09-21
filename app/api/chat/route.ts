@@ -56,10 +56,8 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Payload format optimized for AVA agent (using created thread ID)
+    // Try without thread management first (many agents work without it)
     const payload = {
-      thread_id: parseInt(CURRENT_THREAD_ID) || 0,
-      parent_message_id: 0,
       messages: [
         {
           role: "user",
@@ -70,12 +68,7 @@ export async function POST(request: NextRequest) {
             }
           ]
         }
-      ],
-      // Add tool_choice based on AVA agent's configured tools
-      tool_choice: {
-        type: "auto",
-        name: ["Fetii_Cortex_Analyst", "Address_Venue_Search"]
-      }
+      ]
     }
 
     // Correct headers format for PAT token authentication
