@@ -609,11 +609,83 @@ export async function POST(request: NextRequest) {
         fullResponse = text // Fallback to raw text if no structured content found
       }
       
-      // Parse thinking vs response
+      // Parse thinking vs response and create streaming simulation
       const parsed = parseThinkingAndResponse(fullResponse)
-      return NextResponse.json({ 
-        thinking: parsed.thinking,
-        response: parsed.response 
+      
+      // Create a streaming response that simulates real-time thinking
+      const stream = new ReadableStream({
+        start(controller) {
+          const sendChunk = (data: any) => {
+            controller.enqueue(`data: ${JSON.stringify(data)}\n\n`)
+          }
+
+          // Simulate streaming thinking process
+          if (parsed.thinking) {
+            const thinkingWords = parsed.thinking.split(' ')
+            let currentThinking = ''
+            
+            thinkingWords.forEach((word, index) => {
+              setTimeout(() => {
+                currentThinking += (index > 0 ? ' ' : '') + word
+                sendChunk({
+                  type: 'thinking',
+                  content: currentThinking,
+                  done: false
+                })
+              }, index * 50) // 50ms delay between words
+            })
+
+            // After thinking is done, start the response
+            setTimeout(() => {
+              const responseWords = parsed.response.split(' ')
+              let currentResponse = ''
+              
+              responseWords.forEach((word, index) => {
+                setTimeout(() => {
+                  currentResponse += (index > 0 ? ' ' : '') + word
+                  sendChunk({
+                    type: 'response',
+                    content: currentResponse,
+                    thinking: parsed.thinking,
+                    done: index === responseWords.length - 1
+                  })
+                  
+                  if (index === responseWords.length - 1) {
+                    controller.close()
+                  }
+                }, index * 30) // 30ms delay between response words
+              })
+            }, thinkingWords.length * 50 + 200) // Wait for thinking to finish + small delay
+          } else {
+            // No thinking, just stream the response
+            const responseWords = parsed.response.split(' ')
+            let currentResponse = ''
+            
+            responseWords.forEach((word, index) => {
+              setTimeout(() => {
+                currentResponse += (index > 0 ? ' ' : '') + word
+                sendChunk({
+                  type: 'response',
+                  content: currentResponse,
+                  thinking: null,
+                  done: index === responseWords.length - 1
+                })
+                
+                if (index === responseWords.length - 1) {
+                  controller.close()
+                }
+              }, index * 30)
+            })
+          }
+        }
+      })
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
       })
       
     } else {

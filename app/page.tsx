@@ -7,6 +7,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   thinking?: string
+  isStreaming?: boolean
 }
 
 export default function ChatPage() {
@@ -34,6 +35,16 @@ export default function ChatPage() {
     setInput('')
     setLoading(true)
 
+    // Add a streaming assistant message immediately
+    const streamingMessageIndex = messages.length + 1
+    const streamingMessage: Message = { 
+      role: 'assistant', 
+      content: '',
+      thinking: '',
+      isStreaming: true
+    }
+    setMessages(prev => [...prev, streamingMessage])
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -41,10 +52,8 @@ export default function ChatPage() {
         body: JSON.stringify({ message: messageToSend })
       })
 
-      const data = await response.json()
-      
-      if (!response.ok || data.error) {
-        // If there's debug info, include it in the error
+      if (!response.ok) {
+        const data = await response.json()
         if (data.debug) {
           const debugInfo = JSON.stringify(data.debug, null, 2)
           throw new Error(`${data.error || `HTTP error! status: ${response.status}`}\n\nDEBUG INFO:\n${debugInfo}`)
@@ -52,19 +61,99 @@ export default function ChatPage() {
         throw new Error(data.error || `HTTP error! status: ${response.status}`)
       }
 
-      const assistantMessage: Message = { 
-        role: 'assistant', 
-        content: data.response || 'Sorry, I received an empty response.',
-        thinking: data.thinking || undefined
+      const contentType = response.headers.get('content-type')
+      
+      if (contentType?.includes('text/event-stream') || contentType?.includes('text/plain')) {
+        // Handle streaming response
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('No reader available')
+
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let currentThinking = ''
+        let currentResponse = ''
+        let inThinking = false
+
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const dataContent = line.slice(6)
+                if (dataContent.trim() === '[DONE]' || !dataContent.trim()) continue
+
+                const data = JSON.parse(dataContent)
+
+                if (data.type === 'thinking') {
+                  currentThinking = data.content
+                } else if (data.type === 'response') {
+                  currentResponse = data.content
+                  if (data.thinking) {
+                    currentThinking = data.thinking
+                  }
+                }
+
+                // Update the streaming message in real-time
+                setMessages(prev => prev.map((msg, idx) => 
+                  idx === streamingMessageIndex ? {
+                    ...msg,
+                    thinking: currentThinking,
+                    content: currentResponse,
+                    isStreaming: !data.done
+                  } : msg
+                ))
+
+                if (data.done) {
+                  break
+                }
+
+              } catch (parseError) {
+                console.warn('Failed to parse SSE line:', line, parseError)
+              }
+            }
+          }
+        }
+
+        // Mark as complete
+        setMessages(prev => prev.map((msg, idx) => 
+          idx === streamingMessageIndex ? {
+            ...msg,
+            isStreaming: false
+          } : msg
+        ))
+
+      } else {
+        // Handle regular JSON response
+        const data = await response.json()
+        
+        const finalMessage: Message = { 
+          role: 'assistant', 
+          content: data.response || 'Sorry, I received an empty response.',
+          thinking: data.thinking || undefined,
+          isStreaming: false
+        }
+        
+        setMessages(prev => prev.map((msg, idx) => 
+          idx === streamingMessageIndex ? finalMessage : msg
+        ))
       }
-      setMessages(prev => [...prev, assistantMessage])
+
     } catch (error) {
       console.error('Error:', error)
       const errorMessage: Message = { 
         role: 'assistant', 
-        content: `🔍 [DEBUG] API Error - Latest code deployed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        content: `🔍 [DEBUG] API Error - Latest code deployed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isStreaming: false
       }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages(prev => prev.map((msg, idx) => 
+        idx === streamingMessageIndex ? errorMessage : msg
+      ))
     } finally {
       setLoading(false)
     }
@@ -139,7 +228,7 @@ export default function ChatPage() {
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    {message.role === 'assistant' && message.thinking && (
+                    {message.role === 'assistant' && (message.thinking || message.isStreaming) && (
                       <div className="bg-gray-50 border border-gray-200 rounded-t-lg">
                         <button
                           onClick={() => setExpandedThinking(prev => ({
@@ -150,17 +239,31 @@ export default function ChatPage() {
                         >
                           <div className="text-xs text-gray-500 font-medium flex items-center gap-2">
                             💭 Thinking
-                            <span className="text-gray-400">({message.thinking.split('\n').length} lines)</span>
+                            {message.isStreaming && (
+                              <div className="animate-pulse flex gap-1">
+                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                              </div>
+                            )}
+                            {message.thinking && !message.isStreaming && (
+                              <span className="text-gray-400">({message.thinking.split('\n').length} lines)</span>
+                            )}
                           </div>
-                          {expandedThinking[index] ? (
+                          {(expandedThinking[index] || message.isStreaming) ? (
                             <ChevronUp className="w-4 h-4 text-gray-400" />
                           ) : (
                             <ChevronDown className="w-4 h-4 text-gray-400" />
                           )}
                         </button>
-                        {expandedThinking[index] && (
+                        {(expandedThinking[index] || message.isStreaming) && (
                           <div className="px-3 pb-3 border-t border-gray-200">
-                            <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">{message.thinking}</div>
+                            <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">
+                              {message.thinking}
+                              {message.isStreaming && (
+                                <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse"></span>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
