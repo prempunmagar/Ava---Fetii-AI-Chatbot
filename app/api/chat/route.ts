@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       console.log('🔄 Continuing with thread_id: 0 as fallback')
     }
 
-    // Payload format optimized for AVA agent endpoint
+    // Payload format optimized for AVA agent (based on DESCRIBE output)
     const payload = {
       thread_id: 0,
       parent_message_id: 0,
@@ -70,7 +70,12 @@ export async function POST(request: NextRequest) {
             }
           ]
         }
-      ]
+      ],
+      // Add tool_choice based on AVA agent's configured tools
+      tool_choice: {
+        type: "auto",
+        name: ["Fetii_Cortex_Analyst", "Address_Venue_Search"]
+      }
     }
 
     // Correct headers format for PAT token authentication
@@ -229,8 +234,30 @@ export async function POST(request: NextRequest) {
     // Test the specific AVA agent endpoint first (most likely to work now)
     const avaAgentEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Test different payload formats for the specific agent endpoint
+    // Test different payload formats for the specific AVA agent endpoint
     const payloadTests = [
+      {
+        name: 'AVA Agent Format with Tools',
+        payload: {
+          thread_id: 0,
+          parent_message_id: 0,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: message
+                }
+              ]
+            }
+          ],
+          tool_choice: {
+            type: "auto",
+            name: ["Fetii_Cortex_Analyst", "Address_Venue_Search"]
+          }
+        }
+      },
       {
         name: 'Standard Format',
         payload: {
@@ -334,14 +361,20 @@ export async function POST(request: NextRequest) {
     // Remove thread creation - not needed for :run endpoint
     // Thread management is handled by thread_id and parent_message_id in payload
 
-    // Test multiple endpoint variations - start with AVA agent endpoint since permissions are set up
+    // Test multiple endpoint variations - AVA agent exists, try different formats
     const endpoints = [
-      // Specific AVA agent endpoint (should work now with permissions)
+      // Standard specific agent endpoint
       `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
-      // Generic cortex endpoint as fallback
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`,
-      // Alternative endpoint format
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`
+      // Try with uppercase agent name
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/AVA:run`,
+      // Try without colon (:run)
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`,
+      // Try with uppercase agent name and no colon
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/AVA/run`,
+      // Try with different casing
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:RUN`,
+      // Generic cortex endpoint as last resort
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
     ]
 
     let response: Response | null = null
