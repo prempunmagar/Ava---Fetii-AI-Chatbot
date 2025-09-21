@@ -352,20 +352,10 @@ export async function POST(request: NextRequest) {
     // Remove thread creation - not needed for :run endpoint
     // Thread management is handled by thread_id and parent_message_id in payload
 
-    // Test multiple endpoint variations - AVA agent exists, try different formats
+    // Use ONLY the specific agent endpoint (research shows generic endpoint causes Thread 0 error)
     const endpoints = [
-      // Standard specific agent endpoint
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
-      // Try with uppercase agent name
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/AVA:run`,
-      // Try without colon (:run)
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`,
-      // Try with uppercase agent name and no colon
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/AVA/run`,
-      // Try with different casing
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:RUN`,
-      // Generic cortex endpoint as last resort
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
+      // CORRECT: Specific agent endpoint (this is the only one that should work)
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
     ]
 
     let response: Response | null = null
