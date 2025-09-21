@@ -15,31 +15,62 @@ function cleanObjectReferences(text: string): string {
   return text.trim()
 }
 
-// Function to separate thinking from final response
+// Function to separate thinking from final response (enhanced for Snowflake Intelligence format)
 function parseThinkingAndResponse(text: string): { thinking: string | null, response: string } {
   // Clean the text first
   text = cleanObjectReferences(text)
-  // Common patterns for thinking sections
+  
+  // Look for the comprehensive thinking process that includes:
+  // - Planning steps
+  // - SQL executions  
+  // - Analysis between queries
+  // - Multiple iterations
+  
+  // Pattern for detailed thinking process (look for planning, executing, analyzing sections)
+  const detailedThinkingPattern = /([\s\S]*?)(?:\n\n(?:I found that|Here are|The data shows|Based on the analysis|In summary)[\s\S]*)/
+  const match = text.match(detailedThinkingPattern)
+  
+  if (match && match[1]) {
+    const thinkingContent = match[1].trim()
+    const responseContent = text.replace(match[1], '').trim()
+    
+    // Check if thinking contains substantive analysis steps
+    if (thinkingContent.length > 100 && 
+        (thinkingContent.includes('Planning') || 
+         thinkingContent.includes('Executing') ||
+         thinkingContent.includes('Analysis') ||
+         thinkingContent.includes('SQL') ||
+         thinkingContent.includes('query'))) {
+      return {
+        thinking: thinkingContent,
+        response: responseContent || 'Analysis completed.'
+      }
+    }
+  }
+
+  // Enhanced patterns for different thinking formats
   const patterns = [
+    // Snowflake Intelligence detailed format
+    /(Planning the next steps[\s\S]*?)(?:\n\n(?:I found|Here are|The data|Based on|In summary))/,
+    // Multi-step analysis format
+    /((?:Planning|Executing|Analyzing)[\s\S]*?)(?:\n\n(?:I found|Here are|The data|Based on|In summary))/,
     // ChatGPT-style thinking tags
     /<thinking>([\s\S]*?)<\/thinking>/,
     // Alternative thinking patterns
     /(?:^|\n)(?:Thinking|Analysis|Reasoning):\s*([\s\S]*?)(?:\n(?:Response|Answer|Result):|$)/,
-    // Numbered thinking patterns
-    /(?:^|\n)1\.\s*(?:Thinking|Analysis):([\s\S]*?)(?:\n(?:\d+\.|Response:|Answer:)|$)/,
-    // Bracket patterns
-    /\[thinking\]([\s\S]*?)\[\/thinking\]/,
-    // Double newline separation (common in AI responses)
-    /([\s\S]*?)\n\n([\s\S]*)/
+    // SQL and analysis pattern
+    /([\s\S]*?(?:SQL|query|analysis)[\s\S]*?)(?:\n\n(?:I found|Here are|The data|Based on|In summary))/i,
+    // Double newline separation with substantial content
+    /([\s\S]{200,}?)\n\n((?:I found|Here are|The data|Based on|In summary)[\s\S]*)/
   ]
 
   for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
-      const thinking = match[1]?.trim()
-      const remaining = text.replace(match[0], '').trim()
+    const patternMatch = text.match(pattern)
+    if (patternMatch) {
+      const thinking = patternMatch[1]?.trim()
+      const remaining = text.replace(patternMatch[0], patternMatch[2] || '').trim()
       
-      if (thinking && thinking.length > 20) { // Only consider substantial thinking
+      if (thinking && thinking.length > 50) {
         return {
           thinking: thinking,
           response: remaining || text.split('\n\n').pop()?.trim() || text
@@ -48,37 +79,36 @@ function parseThinkingAndResponse(text: string): { thinking: string | null, resp
     }
   }
 
-  // If no clear thinking pattern, look for sections that seem like reasoning
+  // Fallback: if we can't find structured thinking, check for any substantial content before final summary
   const lines = text.split('\n')
   let thinkingLines: string[] = []
   let responseLines: string[] = []
-  let foundResponseStart = false
+  let foundFinalSummary = false
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     
-    // Check if this line starts the final response
-    if (line.match(/^(?:Based on|Therefore|In conclusion|Final answer|Response|Answer):/i) ||
-        (i > 0 && line.length > 0 && !line.match(/^(?:Let me|I need to|First|Next|However|Additionally)/i))) {
-      foundResponseStart = true
+    // Look for final summary indicators
+    if (line.match(/^(?:I found that|Here are|The data shows|Based on the analysis|In summary|Key findings)/i)) {
+      foundFinalSummary = true
     }
     
-    if (foundResponseStart) {
+    if (foundFinalSummary) {
       responseLines.push(lines[i])
     } else if (line.length > 0) {
       thinkingLines.push(lines[i])
     }
   }
 
-  // If we found a reasonable split
-  if (thinkingLines.length > 2 && responseLines.length > 0) {
+  // If we found substantial thinking content
+  if (thinkingLines.length > 5 && responseLines.length > 0) {
     return {
       thinking: thinkingLines.join('\n').trim(),
       response: responseLines.join('\n').trim()
     }
   }
 
-  // Fallback: no thinking detected
+  // Final fallback: no structured thinking detected
   return {
     thinking: null,
     response: text
