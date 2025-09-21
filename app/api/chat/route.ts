@@ -5,15 +5,15 @@ function parseThinkingAndResponse(text: string): { thinking: string | null, resp
   // Common patterns for thinking sections
   const patterns = [
     // ChatGPT-style thinking tags
-    /<thinking>(.*?)<\/thinking>/s,
+    /<thinking>([\s\S]*?)<\/thinking>/,
     // Alternative thinking patterns
-    /(?:^|\n)(?:Thinking|Analysis|Reasoning):\s*(.*?)(?:\n(?:Response|Answer|Result):|$)/s,
+    /(?:^|\n)(?:Thinking|Analysis|Reasoning):\s*([\s\S]*?)(?:\n(?:Response|Answer|Result):|$)/,
     // Numbered thinking patterns
-    /(?:^|\n)1\.\s*(?:Thinking|Analysis):(.*?)(?:\n(?:\d+\.|Response:|Answer:)|$)/s,
+    /(?:^|\n)1\.\s*(?:Thinking|Analysis):([\s\S]*?)(?:\n(?:\d+\.|Response:|Answer:)|$)/,
     // Bracket patterns
-    /\[thinking\](.*?)\[\/thinking\]/s,
+    /\[thinking\]([\s\S]*?)\[\/thinking\]/,
     // Double newline separation (common in AI responses)
-    /(.*?)\n\n(.*)/s
+    /([\s\S]*?)\n\n([\s\S]*)/
   ]
 
   for (const pattern of patterns) {
