@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
     // Back to original :run endpoint since docs don't specify exact format
     const AGENT_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`
 
-    // Minimum required payload format from Snowflake documentation
+    // Complete payload format with all required fields based on Snowflake docs
     const payload = {
-      thread_id: "0", // Use string "0" for new conversation
-      parent_message_id: "0", // Use string "0" for new conversation
+      thread_id: 0, // Use integer 0 for new conversation
+      parent_message_id: 0, // Use integer 0 for new conversation
       messages: [
         {
           role: "user",
@@ -32,7 +32,21 @@ export async function POST(request: NextRequest) {
             }
           ]
         }
-      ]
+      ],
+      // Add tool_choice - this is likely required for the agent to work
+      tool_choice: {
+        type: "auto"
+      },
+      // Add model specification
+      models: {
+        orchestration: "llama3.3-70B" // or "claude-4-sonnet" based on your setup
+      },
+      // Add instructions for the agent
+      instructions: {
+        response: "Provide helpful and accurate responses about ride-share data",
+        system: "You are Ava, an AI assistant specialized in ride-share analytics for Fetii AI",
+        orchestration: "Use available tools to analyze data when needed"
+      }
     }
 
     // Correct headers format for PAT token authentication
@@ -50,12 +64,18 @@ export async function POST(request: NextRequest) {
     console.log('Content-Length:', JSON.stringify(payload).length)
 
     // COMPREHENSIVE DEBUGGING - Test multiple endpoints and permissions
-    console.log('🔍 COMPREHENSIVE 401 DEBUGGING...')
+    console.log('🔍 COMPREHENSIVE 400 DEBUGGING...')
     console.log('Account:', SNOWFLAKE_ACCOUNT)
-    console.log('Database:', DATABASE) 
+    console.log('Database:', DATABASE)
     console.log('Schema:', SCHEMA)
     console.log('Agent:', AGENT_NAME)
     console.log('Token (first 10 chars):', PAT_TOKEN.substring(0, 10) + '...')
+    console.log('Payload validation:')
+    console.log('- thread_id type:', typeof payload.thread_id, 'value:', payload.thread_id)
+    console.log('- parent_message_id type:', typeof payload.parent_message_id, 'value:', payload.parent_message_id)
+    console.log('- messages structure:', JSON.stringify(payload.messages, null, 2))
+    console.log('- tool_choice:', payload.tool_choice)
+    console.log('- models:', payload.models)
     
     // Test 1: List databases (basic permissions)
     const dbEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases`
@@ -77,10 +97,10 @@ export async function POST(request: NextRequest) {
       console.log('Database test error:', dbError)
     }
     
-    // Test 2: List agents 
+    // Test 2: List agents
     const listEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents`
     console.log('TEST 2: List agents:', listEndpoint)
-    
+
     try {
       const listResponse = await fetch(listEndpoint, {
         method: 'GET',
@@ -90,51 +110,132 @@ export async function POST(request: NextRequest) {
           'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
         }
       })
-      
+
       console.log('List agents response status:', listResponse.status)
       const listText = await listResponse.text()
       console.log('Available agents:', listText)
-      
+
+      if (listResponse.ok) {
+        try {
+          const agents = JSON.parse(listText)
+          const avaAgent = agents.find((agent: any) => agent.name === AGENT_NAME)
+          if (avaAgent) {
+            console.log('✅ AVA agent found:', JSON.stringify(avaAgent, null, 2))
+            console.log('AVA agent tools:', avaAgent.tools || 'No tools defined')
+          } else {
+            console.log('❌ AVA agent NOT found in the list')
+          }
+        } catch (parseError) {
+          console.log('Failed to parse agents list:', parseError)
+        }
+      }
+
     } catch (listError) {
       console.log('Error listing agents:', listError)
     }
 
-    // Step 1: Create a thread first
-    const threadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
-    
-    let threadId = "0" // fallback to "0" if thread creation fails
-    
+    // Test 3: Get specific agent details
+    const agentDetailsEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}`
+    console.log('TEST 3: Get AVA agent details:', agentDetailsEndpoint)
+
     try {
-      console.log('Creating thread...')
-      const threadResponse = await fetch(threadEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          origin_application: "ava_chatbot"
-        })
+      const agentResponse = await fetch(agentDetailsEndpoint, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+        }
       })
-      
-      if (threadResponse.ok) {
-        threadId = await threadResponse.text() // Response is just the thread ID as text
-        threadId = threadId.replace(/"/g, '') // Remove quotes if present
-        console.log('Created thread:', threadId)
-      } else {
-        console.log('Thread creation failed, using fallback "0"')
-      }
-    } catch (threadError) {
-      console.log('Thread creation error, using fallback "0":', threadError)
+
+      console.log('Agent details response status:', agentResponse.status)
+      const agentText = await agentResponse.text()
+      console.log('AVA agent details:', agentText)
+
+    } catch (agentError) {
+      console.log('Error getting agent details:', agentError)
     }
 
-    // Step 2: Update payload with the thread ID
-    payload.thread_id = threadId
+    // Remove thread creation - not needed for :run endpoint
+    // Thread management is handled by thread_id and parent_message_id in payload
 
-    // Now try the main API call
+    // Test multiple endpoint variations
+    const endpoints = [
+      // Primary endpoint
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
+      // Alternative endpoint format
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`,
+      // Generic cortex endpoint
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
+    ]
+
+    let response: Response | null = null
+    let errorText = ''
+    let finalEndpoint = ''
+
+    // Try each endpoint until one works
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Trying endpoint: ${endpoint}`)
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        })
+
+        finalEndpoint = endpoint
+        console.log(`Endpoint ${endpoint} returned status: ${response.status}`)
+
+        if (response.ok || response.status === 400) {
+          // Stop trying if we get a definitive response (success or client error)
+          break
+        }
+      } catch (fetchError) {
+        console.log(`Endpoint ${endpoint} failed:`, fetchError)
+        continue
+      }
+    }
+
+    if (!response) {
+      throw new Error('All endpoints failed')
+    }
+
+    const AGENT_ENDPOINT = finalEndpoint // Update for debugging
+
+    // If we got a 400 error, try a minimal payload as fallback
+    if (response.status === 400) {
+      console.log('🔄 Trying minimal payload fallback...')
+      const minimalPayload = {
+        thread_id: 0,
+        parent_message_id: 0,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: message
+              }
+            ]
+          }
+        ]
+      }
+
+      try {
+        console.log('Minimal payload:', JSON.stringify(minimalPayload, null, 2))
+        response = await fetch(AGENT_ENDPOINT, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(minimalPayload)
+        })
+        console.log('Minimal payload response status:', response.status)
+      } catch (minimalError) {
+        console.log('Minimal payload also failed:', minimalError)
+      }
+    }
+
+    // Continue with existing logic...
     try {
-      const response = await fetch(AGENT_ENDPOINT, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      })
 
       console.log('Main API Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
