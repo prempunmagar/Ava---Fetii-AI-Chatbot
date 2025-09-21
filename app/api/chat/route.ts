@@ -631,33 +631,12 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          // Send initial thinking indicator
+          // Send initial thinking indicator while processing
           sendChunk({
             type: 'thinking',
-            content: 'Analyzing your request...',
+            content: 'Processing your request...',
             done: false
           })
-
-          // Simulate progressive thinking while waiting for Snowflake response
-          const thinkingSteps = [
-            'Analyzing your request...',
-            'Determining if this requires analytics, search, or general knowledge...',
-            'Checking conversation context for related queries...',
-            'Initializing Cortex Agent tools (Analyst, Search, Functions)...',
-            'Connecting to Snowflake data warehouse...',
-            'Processing your request with specialized tools...'
-          ]
-
-          let progressiveThinking = ''
-          for (let i = 0; i < thinkingSteps.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 500))
-            progressiveThinking += (i > 0 ? '\n\n' : '') + thinkingSteps[i]
-            sendChunk({
-              type: 'thinking', 
-              content: progressiveThinking,
-              done: false
-            })
-          }
 
           // Now get the actual response from Snowflake
           let fullResponse = ''
@@ -723,37 +702,42 @@ export async function POST(request: NextRequest) {
           // Parse the final response
           const parsed = parseThinkingAndResponse(fullResponse)
           
-          // Combine our progressive thinking with the actual agent thinking
-          let finalThinking = progressiveThinking
-          
+          // Send the actual agent thinking (the real detailed process)
           if (parsed.thinking) {
-            finalThinking += '\n\n=== Agent Analysis ===\n' + parsed.thinking
+            sendChunk({
+              type: 'thinking',
+              content: parsed.thinking,
+              done: false
+            })
+          } else {
+            // Fallback if no detailed thinking found
+            sendChunk({
+              type: 'thinking',
+              content: 'Analysis completed - processing response...',
+              done: false
+            })
           }
-          
-          sendChunk({
-            type: 'thinking',
-            content: finalThinking,
-            done: false
-          })
           
           await new Promise(resolve => setTimeout(resolve, 300))
 
-          // Stream the response word by word
-          const responseWords = parsed.response.split(' ')
+          // Stream the response in chunks for better performance
+          const response = parsed.response
+          const chunkSize = 50 // Characters per chunk
           let currentResponse = ''
           
-          for (let i = 0; i < responseWords.length; i++) {
-            currentResponse += (i > 0 ? ' ' : '') + responseWords[i]
+          for (let i = 0; i < response.length; i += chunkSize) {
+            currentResponse = response.substring(0, i + chunkSize)
+            const isLastChunk = i + chunkSize >= response.length
             
             sendChunk({
               type: 'response',
               content: currentResponse,
               thinking: parsed.thinking,
-              done: i === responseWords.length - 1
+              done: isLastChunk
             })
             
-            if (i < responseWords.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 50))
+            if (!isLastChunk) {
+              await new Promise(resolve => setTimeout(resolve, 100))
             }
           }
 
