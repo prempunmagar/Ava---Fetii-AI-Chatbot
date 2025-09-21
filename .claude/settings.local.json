@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:docs.snowflake.com)",
-      "WebFetch(domain:quickstarts.snowflake.com)"
+      "WebFetch(domain:quickstarts.snowflake.com)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

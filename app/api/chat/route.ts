@@ -20,10 +20,45 @@ export async function POST(request: NextRequest) {
 
     // Will be set by endpoint testing logic
     let WORKING_ENDPOINT = ''
+    let CURRENT_THREAD_ID = '0' // Will be updated with real thread ID
+
+    // First, create a thread
+    console.log('🔄 STEP 1: Creating a new thread...')
+    const createThreadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
+
+    try {
+      const threadResponse = await fetch(createThreadEndpoint, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+        },
+        body: JSON.stringify({
+          origin_application: 'ava_chatbot'
+        })
+      })
+
+      console.log('Thread creation response status:', threadResponse.status)
+
+      if (threadResponse.ok) {
+        const threadId = await threadResponse.text()
+        CURRENT_THREAD_ID = threadId.replace(/"/g, '') // Remove quotes if present
+        console.log('✅ Thread created successfully:', CURRENT_THREAD_ID)
+      } else {
+        const threadError = await threadResponse.text()
+        console.log('❌ Thread creation failed:', threadError)
+        console.log('🔄 Continuing with thread_id: 0 as fallback')
+      }
+    } catch (threadError) {
+      console.log('❌ Thread creation error:', threadError)
+      console.log('🔄 Continuing with thread_id: 0 as fallback')
+    }
 
     // Minimal payload for generic cortex endpoint
     const payload = {
-      thread_id: 0,
+      thread_id: parseInt(CURRENT_THREAD_ID) || 0,
       parent_message_id: 0,
       messages: [
         {
@@ -59,10 +94,42 @@ export async function POST(request: NextRequest) {
     console.log('- parent_message_id type:', typeof payload.parent_message_id, 'value:', payload.parent_message_id)
     console.log('- messages structure:', JSON.stringify(payload.messages, null, 2))
     console.log('- Payload keys:', Object.keys(payload))
+    console.log('- Thread ID used:', CURRENT_THREAD_ID)
+    console.log('- Final payload:', JSON.stringify(payload, null, 2))
     
-    // Test 1: List databases (basic permissions)
+    // Test 1: Test thread creation permissions
+    const testThreadEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
+    console.log('TEST 1: Testing thread creation permissions:', testThreadEndpoint)
+
+    try {
+      const testThreadResponse = await fetch(testThreadEndpoint, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+        },
+        body: JSON.stringify({
+          origin_application: 'test_permissions'
+        })
+      })
+      console.log('Thread creation test status:', testThreadResponse.status)
+      if (testThreadResponse.ok) {
+        const testThreadId = await testThreadResponse.text()
+        console.log('✅ Thread creation permissions: OK (Thread ID:', testThreadId, ')')
+      } else {
+        const testThreadError = await testThreadResponse.text()
+        console.log('❌ Thread creation permissions: FAILED')
+        console.log('Thread creation error:', testThreadError)
+      }
+    } catch (testThreadError) {
+      console.log('❌ Thread creation permissions test error:', testThreadError)
+    }
+
+    // Test 3: List databases (basic permissions)
     const dbEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases`
-    console.log('TEST 1: Basic database access:', dbEndpoint)
+    console.log('TEST 3: Basic database access:', dbEndpoint)
     
     try {
       const dbResponse = await fetch(dbEndpoint, {
@@ -81,9 +148,42 @@ export async function POST(request: NextRequest) {
       console.log('Database test error:', dbError)
     }
     
-    // Test 2: List agents
+    // Test 5: List existing threads
+    const listThreadsEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/threads`
+    console.log('TEST 5: List existing threads:', listThreadsEndpoint)
+
+    try {
+      const threadsResponse = await fetch(listThreadsEndpoint, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${PAT_TOKEN}`,
+          'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN'
+        }
+      })
+
+      console.log('List threads response status:', threadsResponse.status)
+      const threadsText = await threadsResponse.text()
+      console.log('Existing threads:', threadsText)
+
+      if (threadsResponse.ok) {
+        try {
+          const threads = JSON.parse(threadsText)
+          console.log('✅ Found', threads.length, 'existing threads')
+          if (threads.length > 0) {
+            console.log('📋 Available thread IDs:', threads.map((t: any) => t.thread_id))
+          }
+        } catch (parseError) {
+          console.log('Failed to parse threads list:', parseError)
+        }
+      }
+    } catch (threadsError) {
+      console.log('Error listing threads:', threadsError)
+    }
+
+    // Test 6: List agents
     const listEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents`
-    console.log('TEST 2: List agents:', listEndpoint)
+    console.log('TEST 6: List agents:', listEndpoint)
 
     try {
       const listResponse = await fetch(listEndpoint, {
@@ -131,7 +231,7 @@ export async function POST(request: NextRequest) {
       ]
     }
 
-    console.log('TEST 3: Testing minimal payload with generic endpoint')
+    console.log('TEST 7: Testing minimal payload with generic endpoint')
     try {
       const testResponse = await fetch(minimalTestEndpoint, {
         method: 'POST',
@@ -153,9 +253,9 @@ export async function POST(request: NextRequest) {
       console.log('Error testing minimal payload:', testError)
     }
 
-    // Test 4: Get specific agent details if needed
+    // Test 8: Get specific agent details if needed
     const agentDetailsEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}`
-    console.log('TEST 4: Get AVA agent details:', agentDetailsEndpoint)
+    console.log('TEST 8: Get AVA agent details:', agentDetailsEndpoint)
 
     try {
       const agentResponse = await fetch(agentDetailsEndpoint, {
