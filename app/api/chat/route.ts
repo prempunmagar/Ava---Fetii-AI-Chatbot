@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Function to clean up object references and format properly
+function cleanObjectReferences(text: string): string {
+  // Replace [object Object] patterns with more readable format
+  text = text.replace(/\[object Object\]/g, '[Data Reference]')
+  
+  // Remove trailing object references that aren't useful
+  text = text.replace(/(\[Data Reference\],?)+\s*$/, '')
+  text = text.replace(/(\[object Object\],?)+\s*$/, '')
+  
+  // Clean up other common object patterns
+  text = text.replace(/\[object\s+\w+\]/g, '[Data Reference]')
+  
+  return text.trim()
+}
+
 // Function to separate thinking from final response
 function parseThinkingAndResponse(text: string): { thinking: string | null, response: string } {
+  // Clean the text first
+  text = cleanObjectReferences(text)
   // Common patterns for thinking sections
   const patterns = [
     // ChatGPT-style thinking tags

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Search, MessageCircle } from 'lucide-react'
+import { Send, Search, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,6 +14,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'analytics' | 'research'>('analytics')
+  const [expandedThinking, setExpandedThinking] = useState<Record<number, boolean>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -139,9 +140,29 @@ export default function ChatPage() {
                     }`}
                   >
                     {message.role === 'assistant' && message.thinking && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-t-lg p-3 mb-1">
-                        <div className="text-xs text-gray-500 mb-2 font-medium">💭 Thinking</div>
-                        <div className="whitespace-pre-wrap text-xs text-gray-600">{message.thinking}</div>
+                      <div className="bg-gray-50 border border-gray-200 rounded-t-lg">
+                        <button
+                          onClick={() => setExpandedThinking(prev => ({
+                            ...prev,
+                            [index]: !prev[index]
+                          }))}
+                          className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="text-xs text-gray-500 font-medium flex items-center gap-2">
+                            💭 Thinking
+                            <span className="text-gray-400">({message.thinking.split('\n').length} lines)</span>
+                          </div>
+                          {expandedThinking[index] ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                        {expandedThinking[index] && (
+                          <div className="px-3 pb-3 border-t border-gray-200">
+                            <div className="whitespace-pre-wrap text-xs text-gray-600 mt-2">{message.thinking}</div>
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className={`whitespace-pre-wrap text-sm ${message.role === 'assistant' ? 'p-4' : ''}`}>
