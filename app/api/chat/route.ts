@@ -21,35 +21,16 @@ export async function POST(request: NextRequest) {
     // Will be set by endpoint testing logic
     let WORKING_ENDPOINT = ''
 
-    // Complete payload format with all required fields based on Snowflake docs
+    // Minimal payload for generic cortex endpoint
     const payload = {
-      thread_id: 0, // Use integer 0 for new conversation
-      parent_message_id: 0, // Use integer 0 for new conversation
+      thread_id: 0,
+      parent_message_id: 0,
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: message
-            }
-          ]
+          content: message // Simple string instead of complex content array
         }
-      ],
-      // Add tool_choice - this is likely required for the agent to work
-      tool_choice: {
-        type: "auto"
-      },
-      // Add model specification
-      models: {
-        orchestration: "llama3.3-70B" // or "claude-4-sonnet" based on your setup
-      },
-      // Add instructions for the agent
-      instructions: {
-        response: "Provide helpful and accurate responses about ride-share data",
-        system: "You are Ava, an AI assistant specialized in ride-share analytics for Fetii AI",
-        orchestration: "Use available tools to analyze data when needed"
-      }
+      ]
     }
 
     // Correct headers format for PAT token authentication
@@ -77,8 +58,7 @@ export async function POST(request: NextRequest) {
     console.log('- thread_id type:', typeof payload.thread_id, 'value:', payload.thread_id)
     console.log('- parent_message_id type:', typeof payload.parent_message_id, 'value:', payload.parent_message_id)
     console.log('- messages structure:', JSON.stringify(payload.messages, null, 2))
-    console.log('- tool_choice:', payload.tool_choice)
-    console.log('- models:', payload.models)
+    console.log('- Payload keys:', Object.keys(payload))
     
     // Test 1: List databases (basic permissions)
     const dbEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases`
@@ -138,9 +118,44 @@ export async function POST(request: NextRequest) {
       console.log('Error listing agents:', listError)
     }
 
-    // Test 3: Get specific agent details
+    // Test 3: Test minimal payload with generic endpoint first
+    const minimalTestEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
+    const minimalTestPayload = {
+      thread_id: 0,
+      parent_message_id: 0,
+      messages: [
+        {
+          role: "user",
+          content: "test message"
+        }
+      ]
+    }
+
+    console.log('TEST 3: Testing minimal payload with generic endpoint')
+    try {
+      const testResponse = await fetch(minimalTestEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(minimalTestPayload)
+      })
+
+      console.log('Minimal test response status:', testResponse.status)
+      const testText = await testResponse.text()
+      console.log('Minimal test response:', testText.substring(0, 500) + '...')
+
+      if (testResponse.ok) {
+        console.log('✅ Minimal payload works! Using generic endpoint.')
+        WORKING_ENDPOINT = minimalTestEndpoint
+      } else {
+        console.log('❌ Minimal payload failed, trying specific agent endpoint')
+      }
+    } catch (testError) {
+      console.log('Error testing minimal payload:', testError)
+    }
+
+    // Test 4: Get specific agent details if needed
     const agentDetailsEndpoint = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}`
-    console.log('TEST 3: Get AVA agent details:', agentDetailsEndpoint)
+    console.log('TEST 4: Get AVA agent details:', agentDetailsEndpoint)
 
     try {
       const agentResponse = await fetch(agentDetailsEndpoint, {
@@ -163,14 +178,14 @@ export async function POST(request: NextRequest) {
     // Remove thread creation - not needed for :run endpoint
     // Thread management is handled by thread_id and parent_message_id in payload
 
-    // Test multiple endpoint variations
+    // Test multiple endpoint variations - start with generic endpoint since it worked before
     const endpoints = [
-      // Primary endpoint
+      // Generic cortex endpoint (worked before)
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`,
+      // Specific agent endpoint
       `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}:run`,
       // Alternative endpoint format
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`,
-      // Generic cortex endpoint
-      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
+      `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/databases/${DATABASE}/schemas/${SCHEMA}/agents/${AGENT_NAME}/run`
     ]
 
     let response: Response | null = null
@@ -206,6 +221,11 @@ export async function POST(request: NextRequest) {
 
     WORKING_ENDPOINT = finalEndpoint // Update for debugging
 
+    // If using generic endpoint, set the working endpoint to the generic one
+    if (!WORKING_ENDPOINT) {
+      WORKING_ENDPOINT = `https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/agent:run`
+    }
+
     // If we got a 400 error, try a minimal payload as fallback
     if (response.status === 400) {
       console.log('🔄 Trying minimal payload fallback...')
@@ -215,12 +235,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: message
-              }
-            ]
+            content: message // Simple string format
           }
         ]
       }
