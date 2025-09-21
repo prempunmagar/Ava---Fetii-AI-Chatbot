@@ -20,6 +20,37 @@ function parseThinkingAndResponse(text: string): { thinking: string | null, resp
   // Clean the text first
   text = cleanObjectReferences(text)
   
+  console.log('Parsing text, looking for thinking patterns...')
+  
+  // Look for the last occurrence of a final summary to separate thinking from response
+  const finalSummaryPatterns = [
+    /\n(I found the most recent week of trip data available[\s\S]*)/,
+    /\n(The data for your requested[\s\S]*)/,
+    /\n(I found that the data[\s\S]*)/,
+    /\n(Here are the daily trip volumes[\s\S]*)/,
+    /\n(Based on the analysis[\s\S]*)/
+  ]
+  
+  for (const pattern of finalSummaryPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      const responseStart = text.indexOf(match[1])
+      const thinkingContent = text.substring(0, responseStart).trim()
+      const responseContent = match[1].trim()
+      
+      console.log('Found final summary pattern, splitting...')
+      console.log('Thinking length:', thinkingContent.length)
+      console.log('Response length:', responseContent.length)
+      
+      if (thinkingContent.length > 50) {
+        return {
+          thinking: thinkingContent,
+          response: responseContent
+        }
+      }
+    }
+  }
+  
   // Look for the comprehensive thinking process that includes:
   // - Planning steps
   // - SQL executions  
@@ -33,6 +64,8 @@ function parseThinkingAndResponse(text: string): { thinking: string | null, resp
   if (match && match[1]) {
     const thinkingContent = match[1].trim()
     const responseContent = text.replace(match[1], '').trim()
+    
+    console.log('Found detailed thinking pattern')
     
     // Check if thinking contains substantive analysis steps
     if (thinkingContent.length > 100 && 
@@ -684,7 +717,8 @@ export async function POST(request: NextRequest) {
           } else {
             // Handle JSON response
             const data = await response.json()
-            console.log('JSON response:', data)
+            console.log('JSON response:', JSON.stringify(data, null, 2))
+            console.log('Response keys:', Object.keys(data))
             
             if (data.choices && data.choices.length > 0) {
               fullResponse = data.choices[0]?.message?.content || 'No content in response'
@@ -700,7 +734,15 @@ export async function POST(request: NextRequest) {
           }
 
           // Parse the final response
+          console.log('Full response length:', fullResponse.length)
+          console.log('Full response preview:', fullResponse.substring(0, 500) + '...')
+          
           const parsed = parseThinkingAndResponse(fullResponse)
+          
+          console.log('Parsed thinking length:', parsed.thinking?.length || 0)
+          console.log('Parsed thinking preview:', parsed.thinking?.substring(0, 200) + '...')
+          console.log('Parsed response length:', parsed.response.length)
+          console.log('Parsed response preview:', parsed.response.substring(0, 200) + '...')
           
           // Send the actual agent thinking (the real detailed process)
           if (parsed.thinking) {
